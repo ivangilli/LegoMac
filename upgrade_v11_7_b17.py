@@ -1,4 +1,4 @@
-"""Verifica che il sorgente tracciato contenga il supporto iPhone B16."""
+"""Verifica che il sorgente tracciato contenga il supporto iPhone B17."""
 
 from pathlib import Path
 import py_compile
@@ -6,7 +6,7 @@ import py_compile
 
 ROOT = Path(__file__).resolve().parent
 TARGET = ROOT / "legofinderv7.py"
-EXPECTED_VERSION = 'version = "v11.6-MASTER-iPHONE-B16"'
+EXPECTED_VERSION = 'version = "v11.7-MASTER-iPHONE-B17"'
 REQUIRED_MARKERS = (
     "master_iphone_a4_status",
     '"a4_start"',
@@ -15,6 +15,8 @@ REQUIRED_MARKERS = (
     '"a4_status"',
     '"a4_close"',
     "apri_calibrazione_iphone_a4",
+    '"piano ok"',
+    '"plate ok"',
 )
 
 if not TARGET.is_file():
@@ -23,7 +25,7 @@ if not TARGET.is_file():
 source = TARGET.read_text(encoding="utf-8")
 missing = [marker for marker in (EXPECTED_VERSION, *REQUIRED_MARKERS) if marker not in source]
 if missing:
-    raise SystemExit("Supporto v11.6/B16 incompleto: " + ", ".join(missing))
+    raise SystemExit("Supporto v11.7/B17 incompleto: " + ", ".join(missing))
 
 py_compile.compile(str(TARGET), doraise=True)
-print("LegoMac v11.6/B16 presente; sintassi Python verificata.")
+print("LegoMac v11.7/B17 presente; sintassi Python verificata.")

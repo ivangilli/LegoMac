@@ -53,7 +53,7 @@ def load_rebrickable_api_key():
 API_KEY = load_rebrickable_api_key()
 ICON_SIZE = 140
 MAX_THREADS = 3
-version = "v11.6-MASTER-iPHONE-B16"
+version = "v11.7-MASTER-iPHONE-B17"
 SAVE_COOLDOWN = 2  # secondi tra salvataggi batch
 MAX_IMAGE_CACHE_SIZE = 300  # max immagini in cache LRU
 
@@ -3812,9 +3812,9 @@ def invia_comando_iphone(command):
 
 
 def apri_calibrazione_iphone_a4():
-    """Pannello MASTER per la calibrazione A4 di LEGO Vision v13.1 B16."""
+    """Pannello MASTER per la calibrazione A4 di LEGO Vision v13.1 B17."""
     win = tk.Toplevel(root)
-    win.title("Calibrazione iPhone A4 — build 16")
+    win.title("Calibrazione iPhone A4 — build 17")
     win.geometry("680x680")
     win.transient(root)
 
@@ -3881,13 +3881,13 @@ def apri_calibrazione_iphone_a4():
             reference = "OK" if a4.get("reference") else "—"
             detail = str(a4.get("message", "")).strip()
             stato.config(
-                text=f"● iPhone B16 collegato — Piano: {plane}  Plate 2×4: {reference}\n{detail}",
+                text=f"● iPhone B17 collegato — Piano: {plane}  Plate 2×4: {reference}\n{detail}",
                 fg="black",
             )
         elif master_server is None:
             stato.config(text="MASTER non attiva", fg="black")
         else:
-            stato.config(text="Attendo LEGO Vision v13.1 build 16 sulla rete locale…", fg="black")
+            stato.config(text="Attendo LEGO Vision v13.1 build 17 sulla rete locale…", fg="black")
         win.after(1200, refresh_status)
 
     refresh_status()
@@ -4061,16 +4061,20 @@ def _master_action(payload):
                     message = str(reported_status["message"])
 
             lower = message.lower()
-            if "piano=ok" in lower or "piano calibrato" in lower:
+            if "piano=ok" in lower or "piano ok" in lower or "piano calibrato" in lower:
                 master_iphone_a4_status["plane"] = True
-            if "plate=ok" in lower or (
+            elif "piano=no" in lower or "piano no" in lower:
+                master_iphone_a4_status["plane"] = False
+            if "plate=ok" in lower or "plate ok" in lower or (
                 "plate 2×4" in lower and ("complet" in lower or "riconosci" in lower)
             ):
                 master_iphone_a4_status["reference"] = True
+            elif "plate=no" in lower or "plate no" in lower:
+                master_iphone_a4_status["reference"] = False
             if any(token in lower for token in ("piano", "plate", "calibrazione a4")):
                 master_iphone_a4_status["message"] = message
 
-            risultato.config(text=f"iPhone B16: {message}", fg="#2e7d32")
+            risultato.config(text=f"iPhone B17: {message}", fg="#2e7d32")
             return {"ok": True, "command_id": command_id,
                     "a4_status": dict(master_iphone_a4_status)}
         if action == "recognize":
