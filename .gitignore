@@ -1,0 +1,24 @@
+# Config/segreti locali
+local_config.json
+master_config.json
+.env
+
+# Dati LEGO personali/runtime
+mysets.json
+lego_data.json
+sets_offline.json
+logpezzi.json
+app_version.json
+ui_settings.json
+piece_dimensions.json
+images/
+backups/
+
+# Python/macOS
+__pycache__/
+*.py[cod]
+.DS_Store
+__MACOSX/
+
+# IDE
+.vscode/
