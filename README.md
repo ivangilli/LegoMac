@@ -14,26 +14,34 @@ Versione sorgente iniziale: **v11.5-MASTER-A4-REMOTE**.
 - riconoscimento e filtro dei pezzi mancanti;
 - immagini e dati Rebrickable.
 
-## Installazione
+## Primo avvio dopo il clone
 
-Richiede Python 3 con Tkinter.
+Il sorgente principale della MASTER è conservato in un bundle testuale per evitare problemi di caricamento iniziale. Dopo aver clonato il repository esegui una volta:
+
+```bash
+python3 restore_source.py
+```
+
+Verranno creati/ripristinati nella cartella del repository `legofinderv7.py`, `master_server.py` e i file base del progetto.
+
+Poi installa le dipendenze:
 
 ```bash
 python3 -m pip install -r requirements.txt
 cp local_config.example.json local_config.json
 ```
 
-Inserire la propria API key Rebrickable in `local_config.json`, quindi:
+Inserisci la tua API key Rebrickable in `local_config.json`, quindi avvia:
 
 ```bash
 python3 legofinderv7.py
 ```
 
-In alternativa si può impostare la variabile d'ambiente `REBRICKABLE_API_KEY`.
+In alternativa la API key può essere fornita tramite variabile d'ambiente `REBRICKABLE_API_KEY`.
 
 ## Sicurezza / file locali
 
-`local_config.json`, `master_config.json`, database LEGO, immagini, backup e cache sono esclusi da Git tramite `.gitignore`. Il PIN MASTER viene creato al primo avvio e rimane solo sul Mac.
+`local_config.json`, `master_config.json`, database LEGO, immagini, backup e cache sono esclusi da Git tramite `.gitignore`. Il PIN MASTER viene creato al primo avvio e rimane solo sul Mac. Nessuna API key personale viene pubblicata nel repository.
 
 ## iPhone
 
