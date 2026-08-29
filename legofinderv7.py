@@ -53,7 +53,7 @@ def load_rebrickable_api_key():
 API_KEY = load_rebrickable_api_key()
 ICON_SIZE = 140
 MAX_THREADS = 3
-version = "v11.4-MASTER-REMOTA-FOTO"
+version = "v11.6-MASTER-iPHONE-B16"
 SAVE_COOLDOWN = 2  # secondi tra salvataggi batch
 MAX_IMAGE_CACHE_SIZE = 300  # max immagini in cache LRU
 
@@ -129,6 +129,11 @@ master_pairing_info = None
 master_ui_requests = queue.Queue()
 import_ui_requests = queue.Queue()
 master_remote_commands = []
+master_iphone_a4_status = {
+    "plane": False,
+    "reference": False,
+    "message": "Stato calibrazione non ancora richiesto",
+}
 master_next_command_id = 1
 master_iphone_last_seen = None
 
@@ -3724,7 +3729,8 @@ def _master_snapshot(route, query):
             online = master_iphone_last_seen is not None and time.time() - master_iphone_last_seen < 4
             return {"ready": bool(sets), "version": version, "sets": len(sets),
                     "used": used, "total": total, "remaining": max(total - used, 0),
-                    "iphone_connected": online}
+                    "iphone_connected": online,
+                    "a4_status": dict(master_iphone_a4_status)}
 
         if route == "commands":
             master_iphone_last_seen = time.time()
@@ -3791,8 +3797,100 @@ def invia_comando_iphone(command):
             "created_at": datetime.now().isoformat(timespec="seconds")}
     master_next_command_id += 1
     master_remote_commands.append(item)
-    testo = "Calibrazione richiesta" if command == "calibrate" else "Analisi richiesta"
+    labels = {
+        "calibrate": "Calibrazione piano richiesta",
+        "calibrate_reference": "Calibrazione Plate richiesta",
+        "a4_start": "Guida A4 aperta su iPhone",
+        "a4_plane": "Acquisizione piano A4 richiesta",
+        "a4_reference": "Verifica Plate A4 richiesta",
+        "a4_status": "Lettura stato calibrazione richiesta",
+        "a4_close": "Chiusura guida A4 richiesta",
+        "analyze": "Analisi richiesta",
+    }
+    testo = labels.get(command, f"Comando {command}")
     risultato.config(text=f"{testo}: attendi l’iPhone…", fg="#1565c0")
+
+
+def apri_calibrazione_iphone_a4():
+    """Pannello MASTER per la calibrazione A4 di LEGO Vision v13.1 B16."""
+    win = tk.Toplevel(root)
+    win.title("Calibrazione iPhone A4 — build 16")
+    win.geometry("680x680")
+    win.transient(root)
+
+    tk.Label(
+        win,
+        text="Calibrazione guidata iPhone — foglio A4",
+        font=("Arial", 18, "bold"),
+        fg="black",
+    ).pack(pady=(18, 6))
+    stato = tk.Label(
+        win,
+        text="Verifico collegamento iPhone…",
+        font=("Arial", 12),
+        fg="black",
+        wraplength=610,
+        justify="center",
+    )
+    stato.pack(pady=(0, 14))
+
+    def send(command, text):
+        invia_comando_iphone(command)
+        stato.config(text=text, fg="black")
+
+    steps = tk.Frame(win)
+    steps.pack(fill="both", expand=True, padx=22)
+    rows = [
+        ("1", "Apri guida A4 su iPhone", "a4_start",
+         "Apri la guida sull’iPhone e inquadra tutto il foglio A4 con i quattro marker.", "#006cb7"),
+        ("2", "Calibra piano vuoto", "a4_plane",
+         "Lascia il foglio vuoto e fermo mentre l’iPhone acquisisce il piano.", "#f47b20"),
+        ("3", "Avvia Plate rossa 2×4", "a4_reference",
+         "Metti la Plate rossa 2×4 al centro del foglio e avvia la verifica.", "#e3000b"),
+        ("4", "Leggi stato calibrazione iPhone", "a4_status",
+         "Richiedo lo stato attuale di piano, Plate 2×4 e calibrazione A4.", "#aeb8bf"),
+        ("5", "Chiudi guida e torna al riconoscimento", "a4_close",
+         "La guida viene chiusa e l’iPhone torna al riconoscimento.", "#00a650"),
+    ]
+    for number, label, command, message, color in rows:
+        row = tk.Frame(steps)
+        row.pack(fill="x", pady=7)
+        tk.Label(row, text=number, width=3, font=("Arial", 16, "bold"),
+                 fg="black").pack(side="left")
+        button = tk.Button(row, text=label, command=lambda c=command, m=message: send(c, m))
+        stile_pulsante(button, color, "#111111", color, bold=True, padx=12, pady=9)
+        button.pack(side="left", fill="x", expand=True)
+
+    tk.Label(
+        win,
+        text=("Controlla la barra da 50 mm sul foglio stampato. Durante i passaggi "
+              "2 e 3 non muovere l’iPhone né il foglio A4."),
+        font=("Arial", 11),
+        fg="black",
+        wraplength=610,
+        justify="left",
+    ).pack(padx=24, pady=12)
+
+    def refresh_status():
+        if not win.winfo_exists():
+            return
+        online = master_iphone_last_seen is not None and time.time() - master_iphone_last_seen < 4
+        if online:
+            a4 = master_iphone_a4_status
+            plane = "OK" if a4.get("plane") else "—"
+            reference = "OK" if a4.get("reference") else "—"
+            detail = str(a4.get("message", "")).strip()
+            stato.config(
+                text=f"● iPhone B16 collegato — Piano: {plane}  Plate 2×4: {reference}\n{detail}",
+                fg="black",
+            )
+        elif master_server is None:
+            stato.config(text="MASTER non attiva", fg="black")
+        else:
+            stato.config(text="Attendo LEGO Vision v13.1 build 16 sulla rete locale…", fg="black")
+        win.after(1200, refresh_status)
+
+    refresh_status()
 
 
 def mostra_candidati_master(candidates, measurement):
@@ -3944,7 +4042,7 @@ def _master_recognize(payload):
 
 def _master_action(payload):
     def apply():
-        global master_remote_commands
+        global master_remote_commands, master_iphone_a4_status
         action = str(payload.get("action", "")).lower()
         if action == "command_result":
             try:
@@ -3953,8 +4051,28 @@ def _master_action(payload):
                 command_id = 0
             master_remote_commands = [c for c in master_remote_commands if c["id"] != command_id]
             message = str(payload.get("message", "Comando completato"))
-            risultato.config(text=f"iPhone: {message}", fg="#2e7d32")
-            return {"ok": True, "command_id": command_id}
+            reported_status = payload.get("a4_status")
+            if isinstance(reported_status, dict):
+                if "plane" in reported_status:
+                    master_iphone_a4_status["plane"] = bool(reported_status["plane"])
+                if "reference" in reported_status:
+                    master_iphone_a4_status["reference"] = bool(reported_status["reference"])
+                if reported_status.get("message"):
+                    message = str(reported_status["message"])
+
+            lower = message.lower()
+            if "piano=ok" in lower or "piano calibrato" in lower:
+                master_iphone_a4_status["plane"] = True
+            if "plate=ok" in lower or (
+                "plate 2×4" in lower and ("complet" in lower or "riconosci" in lower)
+            ):
+                master_iphone_a4_status["reference"] = True
+            if any(token in lower for token in ("piano", "plate", "calibrazione a4")):
+                master_iphone_a4_status["message"] = message
+
+            risultato.config(text=f"iPhone B16: {message}", fg="#2e7d32")
+            return {"ok": True, "command_id": command_id,
+                    "a4_status": dict(master_iphone_a4_status)}
         if action == "recognize":
             return _master_recognize(payload)
         key = str(payload.get("piece_key", "")).strip()
@@ -5830,7 +5948,7 @@ btn_undo.pack(side="left", padx=2)
 btn_qr_master = tk.Button(frame_actions, text="▦ QR iPhone", command=mostra_qr_master, bg="#111827", fg="white")
 btn_qr_master.pack(side="left", padx=2)
 btn_calibra_iphone = tk.Button(frame_actions, text="◎ Calibra iPhone",
-                               command=lambda: invia_comando_iphone("calibrate"),
+                               command=apri_calibrazione_iphone_a4,
                                bg="#ef6c00", fg="white")
 btn_calibra_iphone.pack(side="left", padx=2)
 btn_analizza_iphone = tk.Button(frame_actions, text="⌾ Analizza iPhone",

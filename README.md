@@ -24,7 +24,7 @@ Dopo aver clonato il repository esegui una volta:
 python3 restore_source.py
 ```
 
-Il comando ricostruisce il sorgente principale e applica automaticamente la patch **v11.6 / iPhone build 16**, con controllo sintattico Python.
+Il sorgente completo è già tracciato direttamente da Git. Il comando verifica la presenza del supporto **v11.6 / iPhone build 16** e controlla sintatticamente sia l’app sia il server MASTER. Non usa bundle Base64.
 
 Poi installa le dipendenze:
 

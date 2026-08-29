@@ -1,29 +1,27 @@
+"""Verifica il sorgente LegoMac dopo il clone.
+
+Il sorgente completo è tracciato direttamente da Git: non servono bundle o
+ricostruzioni Base64 che possano corrompersi durante il trasferimento.
+"""
+
 from pathlib import Path
-import base64
-import io
+import py_compile
 import subprocess
 import sys
-import zipfile
+
 
 ROOT = Path(__file__).resolve().parent
-BUNDLE = ROOT / "source_bundle"
-PARTS = ["part00.b64", "part01.b64", "part02.b64", "part03.b64"]
+TARGET = ROOT / "legofinderv7.py"
+SERVER = ROOT / "master_server.py"
+UPGRADE = ROOT / "upgrade_v11_6_b16.py"
 
-missing = [name for name in PARTS if not (BUNDLE / name).exists()]
-if missing:
-    raise SystemExit(f"Parti mancanti: {', '.join(missing)}")
+for required in (TARGET, SERVER, UPGRADE):
+    if not required.is_file():
+        raise SystemExit(f"File necessario mancante: {required.name}")
 
-encoded = "".join((BUNDLE / name).read_text(encoding="utf-8").strip() for name in PARTS)
-raw = base64.b64decode(encoded, validate=True)
+subprocess.run([sys.executable, str(UPGRADE)], cwd=ROOT, check=True)
+py_compile.compile(str(TARGET), doraise=True)
+py_compile.compile(str(SERVER), doraise=True)
 
-with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-    archive.testzip()
-    archive.extractall(ROOT)
-
-upgrade = ROOT / "upgrade_v11_6_b16.py"
-if not upgrade.exists():
-    raise SystemExit("upgrade_v11_6_b16.py mancante")
-subprocess.run([sys.executable, str(upgrade)], cwd=ROOT, check=True)
-
-print("LegoMac v11.6-MASTER-iPHONE-B16: sorgenti ripristinati correttamente.")
-print("Ora puoi aprire la cartella in VS Code e avviare: python3 legofinderv7.py")
+print("LegoMac v11.6-MASTER-iPHONE-B16: sorgenti presenti e verificati.")
+print("Avvio: python3 legofinderv7.py")
