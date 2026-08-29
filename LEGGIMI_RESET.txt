@@ -1,0 +1,18 @@
+LEGO Master Mac — versione RESET
+
+Questa copia mantiene i sorgenti originali ricevuti:
+- legofinderv7.py
+- master_server.py
+
+Dati azzerati:
+- mysets.json
+- lego_data.json
+- logpezzi.json
+- sets_offline.json
+- ui_settings.json
+- piece_dimensions.json
+- images/
+
+master_config.json NON è incluso: al primo avvio l'app lo genera con la configurazione/PIN prevista dal sorgente.
+
+Aggiungi/importa poi i tuoi set e file normalmente.
