@@ -2,7 +2,7 @@
 
 Applicazione Mac/Python che gestisce i set LEGO e comunica via LAN con **LEGO Vision** su iPhone.
 
-Versione sorgente iniziale: **v11.5-MASTER-A4-REMOTE**.
+Versione corrente: **v11.6-MASTER-iPHONE-B16**.
 
 ## Funzioni principali
 
@@ -10,19 +10,21 @@ Versione sorgente iniziale: **v11.5-MASTER-A4-REMOTE**.
 - server MASTER locale sulla porta 8765 con PIN generato localmente;
 - pairing iPhone tramite QR;
 - comandi remoti verso LEGO Vision;
-- pannello **Calibrazione iPhone A4** per comandare la calibrazione dal Mac;
+- pannello **Calibrazione iPhone A4** compatibile con LEGO Vision v13.1 build 16;
+- comandi `a4_start`, `a4_plane`, `a4_reference`, `a4_status`, `a4_close`;
+- lettura dello stato calibrazione restituito dall’iPhone;
 - riconoscimento e filtro dei pezzi mancanti;
 - immagini e dati Rebrickable.
 
 ## Primo avvio dopo il clone
 
-Il sorgente principale della MASTER è conservato in un bundle testuale per evitare problemi di caricamento iniziale. Dopo aver clonato il repository esegui una volta:
+Dopo aver clonato il repository esegui una volta:
 
 ```bash
 python3 restore_source.py
 ```
 
-Verranno creati/ripristinati nella cartella del repository `legofinderv7.py`, `master_server.py` e i file base del progetto.
+Il comando ricostruisce il sorgente principale e applica automaticamente la patch **v11.6 / iPhone build 16**, con controllo sintattico Python.
 
 Poi installa le dipendenze:
 
@@ -39,10 +41,22 @@ python3 legofinderv7.py
 
 In alternativa la API key può essere fornita tramite variabile d'ambiente `REBRICKABLE_API_KEY`.
 
+## Calibrazione iPhone build 16 dal Mac
+
+Nel pannello **Calibrazione iPhone A4** puoi:
+
+1. aprire la guida A4 sull’iPhone;
+2. calibrare il piano vuoto;
+3. avviare la verifica della Plate rossa 2×4;
+4. leggere lo stato corrente della calibrazione dall’iPhone;
+5. chiudere la guida e tornare al riconoscimento.
+
+La MASTER mostra anche le risposte restituite da LEGO Vision build 16 e mantiene lo stato A4 ricevuto.
+
 ## Sicurezza / file locali
 
 `local_config.json`, `master_config.json`, database LEGO, immagini, backup e cache sono esclusi da Git tramite `.gitignore`. Il PIN MASTER viene creato al primo avvio e rimane solo sul Mac. Nessuna API key personale viene pubblicata nel repository.
 
 ## iPhone
 
-La MASTER è progettata per lavorare con il branch iPhone `v13-vision-brickognize` del repository `ivangilli/Lego`.
+La MASTER è progettata per lavorare con **LEGO Vision v13.1 build 16** sul branch `v13-vision-brickognize` del repository `ivangilli/Lego`.
