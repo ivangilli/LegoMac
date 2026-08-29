@@ -1,6 +1,8 @@
 from pathlib import Path
 import base64
 import io
+import subprocess
+import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parent
@@ -18,5 +20,10 @@ with zipfile.ZipFile(io.BytesIO(raw)) as archive:
     archive.testzip()
     archive.extractall(ROOT)
 
-print("LegoMac v11.5: sorgenti ripristinati correttamente.")
+upgrade = ROOT / "upgrade_v11_6_b16.py"
+if not upgrade.exists():
+    raise SystemExit("upgrade_v11_6_b16.py mancante")
+subprocess.run([sys.executable, str(upgrade)], cwd=ROOT, check=True)
+
+print("LegoMac v11.6-MASTER-iPHONE-B16: sorgenti ripristinati correttamente.")
 print("Ora puoi aprire la cartella in VS Code e avviare: python3 legofinderv7.py")
