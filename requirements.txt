@@ -1,6 +1,6 @@
 Pillow>=10.0
 requests>=2.31
 qrcode[pil]>=7.4
-opencv-python>=4.10,<5
+opencv-python==4.10.0.84
 websockets>=13,<17
 zeroconf>=0.132,<1

@@ -18,7 +18,7 @@ if ! "$PYTHON_BIN" -c "import tkinter"; then
     exit 1
 fi
 
-if ! "$PYTHON_BIN" -c "import PIL, requests, qrcode"; then
+if ! "$PYTHON_BIN" -c "import PIL, requests, qrcode, cv2, numpy"; then
     echo "Installazione delle dipendenze mancanti..."
     if ! "$PYTHON_BIN" -m pip install -r requirements_v11.txt; then
         echo "ERRORE: installazione delle dipendenze non riuscita."
