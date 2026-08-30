@@ -30,6 +30,15 @@ class MasterServer:
         self.preview_lock = threading.Lock()
         self.preview_jpeg = None
         self.preview_updated_at = 0.0
+        self.preview_sequence = 0
+        self.preview_source = ""
+
+    def set_preview(self, jpeg, sequence=0, source="iPhone"):
+        with self.preview_lock:
+            self.preview_jpeg = jpeg
+            self.preview_updated_at = time.time()
+            self.preview_sequence = int(sequence)
+            self.preview_source = str(source)
 
     @property
     def address(self):
@@ -113,9 +122,7 @@ class MasterServer:
                         jpeg = self.rfile.read(length)
                         if not jpeg.startswith(b"\xff\xd8"):
                             raise ValueError("Il frame non è JPEG")
-                        with owner.preview_lock:
-                            owner.preview_jpeg = jpeg
-                            owner.preview_updated_at = time.time()
+                        owner.set_preview(jpeg, owner.preview_sequence + 1, "iPhone HTTP")
                         self._json(200, {"ok": True})
                     except Exception as exc:
                         self._json(400, {"ok": False, "error": str(exc)})
