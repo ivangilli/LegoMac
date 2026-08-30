@@ -31,7 +31,9 @@ Apri **Sorgente visiva** nella barra superiore e scegli una modalità:
 3. **2 fotocamere** usa una vista principale dall'alto e una seconda vista inclinata.
 
 Per le webcam premi prima **Cerca fotocamere**, assegna gli indici, controlla
-l'anteprima e salva. Lascia quindi il piano vuoto e premi **Calibra**. Da quel
+l'anteprima live e salva. In modalità iPhone, **Avvia anteprima live** mostra i
+frame inviati da LEGO Vision v13.3 build 19 attraverso la rete locale. Lascia
+quindi il piano vuoto e premi **Calibra**. Da quel
 momento **Analizza** ritaglia il pezzo, interroga Brickognize e mostra fino a
 otto destinazioni presenti nell'inventario mancante.
 
