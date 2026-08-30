@@ -37,6 +37,10 @@ quindi il piano vuoto e premi **Calibra**. Da quel
 momento **Analizza** ritaglia il pezzo, interroga Brickognize e mostra fino a
 otto destinazioni presenti nell'inventario mancante.
 
+La v12.2 usa un WebSocket persistente con heartbeat e riconnessione automatica.
+Bonjour pubblica `_legovision._tcp` per ritrovare il Mac quando cambia indirizzo
+IP. Il precedente endpoint HTTP resta disponibile come fallback.
+
 macOS può chiedere l'autorizzazione Fotocamera al primo utilizzo: va concessa
 al Terminale o all'app Python usata per avviare LEGO Smista PRO.
 
