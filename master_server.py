@@ -3,6 +3,7 @@
 import json
 import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -26,6 +27,9 @@ class MasterServer:
         self.port = int(port)
         self.httpd = None
         self.thread = None
+        self.preview_lock = threading.Lock()
+        self.preview_jpeg = None
+        self.preview_updated_at = 0.0
 
     @property
     def address(self):
@@ -52,6 +56,14 @@ class MasterServer:
                 self.end_headers()
                 self.wfile.write(raw)
 
+            def _bytes(self, status, raw, content_type):
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                self.end_headers()
+                self.wfile.write(raw)
+
             def _authorized(self):
                 return self.headers.get("X-Master-PIN", "") == owner.pin
 
@@ -70,6 +82,14 @@ class MasterServer:
                 if not self._authorized():
                     self._json(401, {"ok": False, "error": "PIN MASTER non valido"})
                     return
+                if parsed.path == "/api/preview":
+                    with owner.preview_lock:
+                        jpeg = owner.preview_jpeg
+                    if jpeg is None:
+                        self._json(404, {"ok": False, "error": "Anteprima iPhone non ancora disponibile"})
+                    else:
+                        self._bytes(200, jpeg, "image/jpeg")
+                    return
                 query = {k: v[-1] for k, v in parse_qs(parsed.query).items()}
                 route = {"/api/sets": "sets", "/api/pieces": "pieces",
                          "/api/commands": "commands"}.get(parsed.path)
@@ -84,6 +104,21 @@ class MasterServer:
             def do_POST(self):
                 if not self._authorized():
                     self._json(401, {"ok": False, "error": "PIN MASTER non valido"})
+                    return
+                if self.path == "/api/preview":
+                    try:
+                        length = int(self.headers.get("Content-Length", "0"))
+                        if length < 100 or length > 1_500_000:
+                            raise ValueError("Dimensione JPEG anteprima non valida")
+                        jpeg = self.rfile.read(length)
+                        if not jpeg.startswith(b"\xff\xd8"):
+                            raise ValueError("Il frame non è JPEG")
+                        with owner.preview_lock:
+                            owner.preview_jpeg = jpeg
+                            owner.preview_updated_at = time.time()
+                        self._json(200, {"ok": True})
+                    except Exception as exc:
+                        self._json(400, {"ok": False, "error": str(exc)})
                     return
                 if self.path != "/api/action":
                     self._json(404, {"ok": False, "error": "Percorso non trovato"})
