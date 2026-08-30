@@ -7,7 +7,7 @@ import py_compile
 ROOT = Path(__file__).resolve().parent
 TARGET = ROOT / "legofinderv7.py"
 CAMERA = ROOT / "camera_pipeline.py"
-EXPECTED_VERSION = 'version = "v12.0-MASTER-MULTICAMERA-B1"'
+EXPECTED_VERSION = 'version = "v12.1-MASTER-LIVE-PREVIEW-B2"'
 REQUIRED_MARKERS = (
     "apri_sorgente_visiva",
     "calibra_sorgente_visiva",
@@ -17,6 +17,8 @@ REQUIRED_MARKERS = (
     '("camera2", "2 fotocamere"',
     "apri_calibrazione_iphone_a4",
     "fuse_predictions",
+    "Avvia anteprima live",
+    "/api/preview",
 )
 
 for required in (TARGET, CAMERA):
