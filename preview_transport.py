@@ -38,6 +38,8 @@ class PreviewTransport:
             return
 
         def handler(websocket):
+            accept_frame = True
+            current_sequence = -1
             try:
                 raw = websocket.recv(timeout=6)
                 hello = json.loads(raw) if isinstance(raw, str) else {}
@@ -46,6 +48,7 @@ class PreviewTransport:
                     return
                 self.device_name = str(hello.get("device", "iPhone"))[:80]
                 self.last_seen = time.time()
+                self.last_sequence = -1
                 websocket.send(json.dumps({
                     "type": "ready", "heartbeat": 2, "max_fps": 8,
                     "jpeg_quality": 0.62,
@@ -58,17 +61,22 @@ class PreviewTransport:
                         continue
                     self.last_seen = time.time()
                     if isinstance(message, bytes):
-                        if 100 <= len(message) <= 1_500_000 and message.startswith(b"\xff\xd8"):
+                        if (accept_frame and 100 <= len(message) <= 1_500_000
+                                and message.startswith(b"\xff\xd8")):
                             self.frames_received += 1
-                            self.frame_callback(message, self.frames_received, self.device_name)
+                            self.frame_callback(message, current_sequence, self.device_name)
+                        accept_frame = True
                         continue
                     payload = json.loads(message)
                     if payload.get("type") == "frame":
                         sequence = int(payload.get("sequence", -1))
                         if sequence <= self.last_sequence:
+                            accept_frame = False
                             websocket.send(json.dumps({"type": "drop", "sequence": sequence}))
                         else:
+                            accept_frame = True
                             self.last_sequence = sequence
+                            current_sequence = sequence
                     elif payload.get("type") == "ping":
                         websocket.send(json.dumps({"type": "pong", "time": time.time()}))
             except Exception as exc:
@@ -113,4 +121,3 @@ class PreviewTransport:
                 self.zeroconf.close()
             except Exception:
                 pass
-
