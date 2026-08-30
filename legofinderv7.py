@@ -6171,53 +6171,57 @@ ordine_var = tk.StringVar(value=saved_sort_mode)
 weight_filter_var = None
 pack_filter_var = None
 
-# 🔹 BARRA ALTA (2 RIGHE)
+# 🔹 BARRA ALTA: pulsanti su 2 righe + filtri
 frame_top = tk.Frame(root)
 frame_top.pack(pady=5, fill="x")
 
 frame_actions = tk.Frame(frame_top)
 frame_actions.pack(fill="x", pady=(0, 4))
+frame_actions_row1 = tk.Frame(frame_actions)
+frame_actions_row1.pack(fill="x", pady=(0, 3))
+frame_actions_row2 = tk.Frame(frame_actions)
+frame_actions_row2.pack(fill="x")
 
 frame_filters = tk.Frame(frame_top)
 frame_filters.pack(fill="x")
 
-entry_set = tk.Entry(frame_actions, width=24, font=("Arial", 12))
+entry_set = tk.Entry(frame_actions_row1, width=24, font=("Arial", 12))
 entry_set.pack(side="left", padx=2)
 entry_set.bind("<KeyRelease>", on_type)
 entry_set.bind("<Return>", lambda e: aggiungi_set())
 
-btn_add_set = tk.Button(frame_actions, text="Aggiungi set", command=aggiungi_set)
+btn_add_set = tk.Button(frame_actions_row1, text="Aggiungi set", command=aggiungi_set)
 btn_add_set.pack(side="left", padx=2)
-btn_gestione = tk.Button(frame_actions, text="Gestione Set", command=apri_gestione_set)
+btn_gestione = tk.Button(frame_actions_row1, text="Gestione Set", command=apri_gestione_set)
 btn_gestione.pack(side="left", padx=2)
-btn_aggiorna = tk.Button(frame_actions, text="Aggiorna lista", command=carica_mysets)
+btn_aggiorna = tk.Button(frame_actions_row1, text="Aggiorna lista", command=carica_mysets)
 btn_aggiorna.pack(side="left", padx=2)
-btn_stato = tk.Button(frame_actions, text="Stato Set", command=apri_riepilogo)
+btn_stato = tk.Button(frame_actions_row1, text="Stato Set", command=apri_riepilogo)
 btn_stato.pack(side="left", padx=2)
-btn_log = tk.Button(frame_actions, text="Log Pezzi", command=apri_log_pezzi)
+btn_log = tk.Button(frame_actions_row1, text="Log Pezzi", command=apri_log_pezzi)
 btn_log.pack(side="left", padx=2)
-btn_stampa_set = tk.Button(frame_actions, text="Stampa Nr+Nomi", command=esporta_foglio_etichette_set_a4)
+btn_stampa_set = tk.Button(frame_actions_row1, text="Stampa Nr+Nomi", command=esporta_foglio_etichette_set_a4)
 btn_stampa_set.pack(side="left", padx=2)
-btn_batch = tk.Button(frame_actions, text="Batch Colore", command=apri_modalita_batch_colore)
+btn_batch = tk.Button(frame_actions_row1, text="Batch Colore", command=apri_modalita_batch_colore)
 btn_batch.pack(side="left", padx=2)
-btn_magic = tk.Button(frame_actions, text="🪄 Magic Sets", command=apri_magic_sets, bg="#7c3aed", fg="white")
+btn_magic = tk.Button(frame_actions_row1, text="🪄 Magic Sets", command=apri_magic_sets, bg="#7c3aed", fg="white")
 btn_magic.pack(side="left", padx=2)
-btn_cerca_nuovi = tk.Button(frame_actions, text="🔍 Cerca Nuovi", command=apri_cerca_nuovi_sets, bg="#1565c0", fg="white")
+btn_cerca_nuovi = tk.Button(frame_actions_row1, text="🔍 Cerca Nuovi", command=apri_cerca_nuovi_sets, bg="#1565c0", fg="white")
 btn_cerca_nuovi.pack(side="left", padx=2)
 
 lbl_colore = tk.Label(frame_filters, text="Colore:")
-btn_undo = tk.Button(frame_actions, text="⎌ Undo", command=annulla_ultimo_pezzo)
+btn_undo = tk.Button(frame_actions_row2, text="⎌ Undo", command=annulla_ultimo_pezzo)
 btn_undo.pack(side="left", padx=2)
-btn_qr_master = tk.Button(frame_actions, text="▦ QR iPhone", command=mostra_qr_master, bg="#111827", fg="white")
+btn_qr_master = tk.Button(frame_actions_row2, text="▦ QR iPhone", command=mostra_qr_master, bg="#111827", fg="white")
 btn_qr_master.pack(side="left", padx=2)
-btn_sorgente = tk.Button(frame_actions, text="◉ Sorgente", command=apri_sorgente_visiva,
+btn_sorgente = tk.Button(frame_actions_row2, text="◉ Sorgente", command=apri_sorgente_visiva,
                          bg="#6a1b9a", fg="white")
 btn_sorgente.pack(side="left", padx=2)
-btn_calibra_iphone = tk.Button(frame_actions, text="◎ Calibra",
+btn_calibra_iphone = tk.Button(frame_actions_row2, text="◎ Calibra",
                                command=calibra_sorgente_visiva,
                                bg="#ef6c00", fg="white")
 btn_calibra_iphone.pack(side="left", padx=2)
-btn_analizza_iphone = tk.Button(frame_actions, text="⌾ Analizza",
+btn_analizza_iphone = tk.Button(frame_actions_row2, text="⌾ Analizza",
                                 command=analizza_sorgente_visiva,
                                 bg="#2e7d32", fg="white")
 btn_analizza_iphone.pack(side="left", padx=2)
@@ -6245,7 +6249,7 @@ aggiorna_controlli_sorgente()
 
 chk_font = font.Font(size=18, weight="bold")
 chk_scurisci = tk.Checkbutton(
-    frame_actions,
+    frame_actions_row2,
     text="Scurisci completi",
     variable=solo_mancanti_var,
     font=chk_font,
@@ -6253,7 +6257,7 @@ chk_scurisci = tk.Checkbutton(
 )
 chk_scurisci.pack(side="left", padx=(10, 2))
 chk_togli_completi = tk.Checkbutton(
-    frame_actions,
+    frame_actions_row2,
     text="Togli completi",
     variable=togli_completi_var,
     font=chk_font,
@@ -6261,7 +6265,7 @@ chk_togli_completi = tk.Checkbutton(
 )
 chk_togli_completi.pack(side="left", padx=(4, 2))
 chk_togli_zero = tk.Checkbutton(
-    frame_actions,
+    frame_actions_row2,
     text="Togli a zero",
     variable=togli_zero_var,
     font=chk_font,
@@ -6270,7 +6274,7 @@ chk_togli_zero = tk.Checkbutton(
 chk_togli_zero.pack(side="left", padx=(4, 0))
 
 chk_lock = tk.Checkbutton(
-    frame_actions,
+    frame_actions_row2,
     text="🔒",
     variable=lock_var,
     font=font.Font(size=20),
