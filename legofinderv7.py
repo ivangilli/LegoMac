@@ -58,7 +58,7 @@ def load_rebrickable_api_key():
 API_KEY = load_rebrickable_api_key()
 ICON_SIZE = 140
 MAX_THREADS = 3
-version = "v12.1-MASTER-LIVE-PREVIEW-B2"
+version = "v12.2-MASTER-STABLE-LINK-B3"
 SAVE_COOLDOWN = 2  # secondi tra salvataggi batch
 MAX_IMAGE_CACHE_SIZE = 300  # max immagini in cache LRU
 
@@ -132,6 +132,7 @@ DEFAULT_UI_SETTINGS = {
 ui_settings = DEFAULT_UI_SETTINGS.copy()
 pending_restore_saved_filters = True
 master_server = None
+preview_transport = None
 master_pairing_info = None
 master_ui_requests = queue.Queue()
 import_ui_requests = queue.Queue()
@@ -4459,7 +4460,7 @@ def _master_action(payload):
 
 
 def start_master_server():
-    global master_server, master_pairing_info
+    global master_server, master_pairing_info, preview_transport
     config = load_master_config()
     if not config.get("enabled", True):
         return
@@ -4468,6 +4469,15 @@ def start_master_server():
         master_server = MasterServer(_master_snapshot, _master_action, config["pin"], config["port"])
         address = master_server.start()
         master_pairing_info = {"address": address, "pin": config["pin"]}
+        try:
+            from preview_transport import PreviewTransport
+            preview_transport = PreviewTransport(
+                config["pin"], config["port"], master_server.set_preview)
+            ws_port = preview_transport.start()
+            master_pairing_info["ws_port"] = ws_port
+        except Exception as exc:
+            preview_transport = None
+            print(f"[PREVIEW] Trasporto stabile non avviato: {exc}")
         print(f"[MASTER] Attiva su {address}  PIN {config['pin']}")
         root.title(f"LEGO Smista PRO - MASTER  {address}  PIN {config['pin']}")
     except Exception as exc:
@@ -6567,6 +6577,8 @@ def on_close():
     save_log(force=True)
     save_ui_settings()
     _close_camera_session()
+    if preview_transport is not None:
+        preview_transport.stop()
     if master_server is not None:
         master_server.stop()
     root.destroy()
