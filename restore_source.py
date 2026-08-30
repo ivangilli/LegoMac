@@ -13,15 +13,17 @@ import sys
 ROOT = Path(__file__).resolve().parent
 TARGET = ROOT / "legofinderv7.py"
 SERVER = ROOT / "master_server.py"
-UPGRADE = ROOT / "upgrade_v11_7_b17.py"
+UPGRADE = ROOT / "upgrade_v12_multicamera.py"
+CAMERA = ROOT / "camera_pipeline.py"
 
-for required in (TARGET, SERVER, UPGRADE):
+for required in (TARGET, SERVER, CAMERA, UPGRADE):
     if not required.is_file():
         raise SystemExit(f"File necessario mancante: {required.name}")
 
 subprocess.run([sys.executable, str(UPGRADE)], cwd=ROOT, check=True)
 py_compile.compile(str(TARGET), doraise=True)
 py_compile.compile(str(SERVER), doraise=True)
+py_compile.compile(str(CAMERA), doraise=True)
 
-print("LegoMac v11.7-MASTER-iPHONE-B17: sorgenti presenti e verificati.")
+print("LegoMac v12.0-MASTER-MULTICAMERA-B1: sorgenti presenti e verificati.")
 print("Avvio: python3 legofinderv7.py")

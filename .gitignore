@@ -1,5 +1,7 @@
 # Config/segreti locali
 local_config.json
+camera_config.json
+camera_calibration/
 master_config.json
 .env
 

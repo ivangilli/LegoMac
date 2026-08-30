@@ -37,6 +37,11 @@ import queue
 from datetime import datetime
 from html import escape
 
+from camera_pipeline import (
+    CameraError, CameraSession, discover_cameras, fuse_predictions,
+    ids_match, load_camera_config, save_camera_config,
+)
+
 def load_rebrickable_api_key():
     """Carica la chiave dall'ambiente o dalla configurazione locale esclusa da Git."""
     env_key = os.environ.get("REBRICKABLE_API_KEY", "").strip()
@@ -53,7 +58,7 @@ def load_rebrickable_api_key():
 API_KEY = load_rebrickable_api_key()
 ICON_SIZE = 140
 MAX_THREADS = 3
-version = "v11.7-MASTER-iPHONE-B17"
+version = "v12.0-MASTER-MULTICAMERA-B1"
 SAVE_COOLDOWN = 2  # secondi tra salvataggi batch
 MAX_IMAGE_CACHE_SIZE = 300  # max immagini in cache LRU
 
@@ -83,6 +88,8 @@ version_info_file = os.path.join(script_dir, "app_version.json")
 ui_settings_file = os.path.join(script_dir, "ui_settings.json")
 master_config_file = os.path.join(script_dir, "master_config.json")
 piece_dimensions_file = os.path.join(script_dir, "piece_dimensions.json")
+camera_config_file = os.path.join(script_dir, "camera_config.json")
+camera_calibration_dir = os.path.join(script_dir, "camera_calibration")
 os.makedirs(image_dir, exist_ok=True)
 os.makedirs(set_thumb_dir, exist_ok=True)
 os.makedirs(backup_dir, exist_ok=True)
@@ -136,6 +143,9 @@ master_iphone_a4_status = {
 }
 master_next_command_id = 1
 master_iphone_last_seen = None
+camera_config = load_camera_config(camera_config_file)
+camera_session = None
+camera_window = None
 
 
 def load_master_config():
@@ -3893,15 +3903,264 @@ def apri_calibrazione_iphone_a4():
     refresh_status()
 
 
-def mostra_candidati_master(candidates, measurement):
-    """Mostra sul Mac i risultati ricevuti dall'iPhone."""
+def _camera_mode_label(mode=None):
+    value = mode or camera_config.get("mode", "iphone")
+    return {"iphone": "iPhone", "camera1": "1 fotocamera", "camera2": "2 fotocamere"}.get(value, "iPhone")
+
+
+def _close_camera_session():
+    global camera_session
+    if camera_session is not None:
+        try:
+            camera_session.close()
+        except Exception:
+            pass
+        camera_session = None
+
+
+def _ensure_camera_session():
+    global camera_session
+    mode = camera_config.get("mode", "iphone")
+    if mode == "iphone":
+        raise CameraError("La sorgente attiva è iPhone.")
+    count = 2 if mode == "camera2" else 1
+    indices = list(camera_config.get("indices", [0, 1]))[:count]
+    if len(indices) != count:
+        raise CameraError("Configura prima le fotocamere da Sorgente visiva.")
+    if camera_session is None or camera_session.indices != indices:
+        _close_camera_session()
+        camera_session = CameraSession(indices, camera_calibration_dir)
+        camera_session.open()
+    return camera_session
+
+
+def _color_adjustment(detected, candidate):
+    detected = str(detected or "Unknown").lower()
+    candidate = str(candidate or "Unknown").lower()
+    if detected == "unknown":
+        return 0
+    if detected == candidate:
+        return 8
+    grays = {"dark bluish gray", "light bluish gray", "gray", "dark gray"}
+    if detected in grays and candidate in grays:
+        return 3
+    return -8
+
+
+def _webcam_candidates(predictions, detected_color):
+    """Incrocia Brickognize con tutte le destinazioni ancora mancanti."""
+    rows = []
+    seen = set()
+    for prediction in predictions:
+        predicted_id = str(prediction.get("id", ""))
+        score = float(prediction.get("score", 0.0))
+        for set_name, parts in sets.items():
+            for key, part in parts.items():
+                used, total = int(part.get("used", 0)), int(part.get("total", 0))
+                if total <= 0 or used >= total:
+                    continue
+                part_num = key.split("_", 1)[0]
+                if not ids_match(part_num, predicted_id):
+                    continue
+                unique = (set_name, key)
+                if unique in seen:
+                    continue
+                seen.add(unique)
+                color = key.split("_", 1)[1] if "_" in key else "Unknown"
+                confidence = max(1, min(99, int(round(score * 100)) + _color_adjustment(detected_color, color)))
+                rows.append({
+                    "piece_key": key,
+                    "name": prediction.get("name") or part.get("name", ""),
+                    "image": prediction.get("img_url") or part.get("img", ""),
+                    "color": color,
+                    "set_name": set_name,
+                    "set_number": numerazione_set.get(set_name),
+                    "used": used,
+                    "total": total,
+                    "score": round(score, 4),
+                    "confidence": confidence,
+                    "views": int(prediction.get("views", 1)),
+                })
+    rows.sort(key=lambda row: (-row["confidence"], row["set_number"] or 999999, row["piece_key"]))
+    return rows[:8]
+
+
+def calibra_sorgente_visiva():
+    if camera_config.get("mode") == "iphone":
+        apri_calibrazione_iphone_a4()
+        return
+    risultato.config(text="Calibrazione: lascia il piano vuoto…", fg="#ef6c00")
+
+    def worker():
+        try:
+            session = _ensure_camera_session()
+            session.calibrate_plane()
+            root.after(0, lambda: risultato.config(
+                text=f"Piano salvato per {_camera_mode_label()}. Ora metti un pezzo al centro.", fg="#2e7d32"))
+        except Exception as exc:
+            root.after(0, lambda e=str(exc): messagebox.showerror("Calibrazione fotocamere", e))
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def analizza_sorgente_visiva():
+    if camera_config.get("mode") == "iphone":
+        invia_comando_iphone("analyze")
+        return
+    risultato.config(text=f"Analisi con {_camera_mode_label()}…", fg="#1565c0")
+
+    def progress(message):
+        root.after(0, lambda m=message: risultato.config(text=m, fg="#1565c0"))
+
+    def worker():
+        try:
+            session = _ensure_camera_session()
+            if not all(session.has_plane(index) for index in session.indices):
+                raise CameraError("Prima calibra il piano vuoto per tutte le fotocamere.")
+            predictions, frames = session.recognize(progress)
+            colors = [frame.color_name for frame in frames if frame.color_name != "Unknown"]
+            detected_color = max(set(colors), key=colors.count) if colors else "Unknown"
+            candidates = _webcam_candidates(predictions, detected_color)
+            measurement = {
+                "width_mm": 0.0, "length_mm": 0.0, "height_mm": 0.0,
+                "color": detected_color, "source": _camera_mode_label(),
+                "views": len(frames), "recognized_id": predictions[0].get("id", "") if predictions else "",
+            }
+            root.after(0, lambda: mostra_candidati_master(candidates, measurement))
+            root.after(0, lambda: risultato.config(
+                text=(f"{_camera_mode_label()}: {len(candidates)} candidati mancanti"
+                      if candidates else "Pezzo riconosciuto, ma non trovato tra quelli mancanti"),
+                fg="#2e7d32" if candidates else "#ef6c00"))
+        except Exception as exc:
+            root.after(0, lambda e=str(exc): messagebox.showerror("Analisi fotocamere", e))
+            root.after(0, lambda: risultato.config(text="Analisi fotocamere non riuscita", fg="#c62828"))
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def apri_sorgente_visiva():
+    global camera_window
+    if camera_window is not None and camera_window.winfo_exists():
+        camera_window.lift()
+        return
+
     win = tk.Toplevel(root)
-    win.title("Candidati riconosciuti dall’iPhone")
+    camera_window = win
+    win.title("Sorgente visiva LEGO")
+    win.geometry("940x720")
+    win.transient(root)
+    mode_var = tk.StringVar(value=camera_config.get("mode", "iphone"))
+    indices = list(camera_config.get("indices", [0, 1])) + [0, 1]
+    camera_a_var = tk.IntVar(value=indices[0])
+    camera_b_var = tk.IntVar(value=indices[1])
+    status = tk.Label(win, text="Scegli come acquisire il pezzo.", font=("Arial", 12), wraplength=850)
+
+    tk.Label(win, text="Sorgente visiva", font=("Arial", 21, "bold")).pack(pady=(18, 6))
+    modes = tk.Frame(win)
+    modes.pack(fill="x", padx=22, pady=8)
+    for value, label, detail in (
+        ("iphone", "iPhone", "Usa LEGO Vision e la calibrazione A4 esistente."),
+        ("camera1", "1 fotocamera", "Una webcam riprende sagoma, colore e dettagli."),
+        ("camera2", "2 fotocamere", "Vista superiore + inclinata, risultati fusi."),
+    ):
+        card = tk.Frame(modes, bd=1, relief="solid", padx=9, pady=8)
+        card.pack(side="left", fill="both", expand=True, padx=5)
+        tk.Radiobutton(card, text=label, variable=mode_var, value=value,
+                       font=("Arial", 14, "bold")).pack(anchor="w")
+        tk.Label(card, text=detail, justify="left", wraplength=240).pack(anchor="w", pady=(3, 0))
+
+    selectors = tk.LabelFrame(win, text="Fotocamere USB", padx=12, pady=10)
+    selectors.pack(fill="x", padx=27, pady=10)
+    tk.Label(selectors, text="Vista principale (dall’alto):").grid(row=0, column=0, sticky="w", padx=6, pady=5)
+    menu_a = tk.OptionMenu(selectors, camera_a_var, *range(8))
+    menu_a.grid(row=0, column=1, sticky="w")
+    tk.Label(selectors, text="Seconda vista (inclinata):").grid(row=1, column=0, sticky="w", padx=6, pady=5)
+    menu_b = tk.OptionMenu(selectors, camera_b_var, *range(8))
+    menu_b.grid(row=1, column=1, sticky="w")
+
+    preview_frame = tk.Frame(win, bg="#242424", height=340)
+    preview_frame.pack(fill="both", expand=True, padx=27, pady=8)
+    preview_a = tk.Label(preview_frame, text="Anteprima principale", bg="#242424", fg="white")
+    preview_b = tk.Label(preview_frame, text="Anteprima inclinata", bg="#242424", fg="white")
+    preview_a.pack(side="left", fill="both", expand=True, padx=3, pady=3)
+    preview_b.pack(side="left", fill="both", expand=True, padx=3, pady=3)
+    status.pack(pady=4)
+
+    def selected_indices():
+        return [camera_a_var.get(), camera_b_var.get()] if mode_var.get() == "camera2" else [camera_a_var.get()]
+
+    def show_frames(frames):
+        for label, frame in zip((preview_a, preview_b), frames):
+            rgb = frame.cropped_bgr[:, :, ::-1]
+            image = Image.fromarray(rgb)
+            image.thumbnail((420, 330), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(image)
+            label.config(image=photo, text="")
+            label.image = photo
+        if len(frames) == 1:
+            preview_b.config(image="", text="Seconda vista non attiva")
+            preview_b.image = None
+
+    def preview_worker():
+        try:
+            temp = CameraSession(selected_indices(), camera_calibration_dir)
+            temp.open()
+            frames = temp.preview()
+            temp.close()
+            root.after(0, lambda: show_frames(frames))
+            root.after(0, lambda: status.config(text="Anteprima acquisita. Il riquadro mostra il ritaglio usato da Brickognize."))
+        except Exception as exc:
+            root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
+
+    def probe_worker():
+        root.after(0, lambda: status.config(text="Cerco le fotocamere collegate…", fg="black"))
+        try:
+            found = discover_cameras()
+            text = ", ".join(choice.label for choice in found) or "Nessuna fotocamera rilevata"
+            root.after(0, lambda t=text: status.config(text=t, fg="black"))
+        except Exception as exc:
+            root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
+
+    def save():
+        global camera_config
+        chosen = selected_indices()
+        if mode_var.get() == "camera2" and len(set(chosen)) != 2:
+            messagebox.showwarning("Due fotocamere", "Scegli due indici diversi.")
+            return
+        _close_camera_session()
+        camera_config = {"mode": mode_var.get(), "indices": chosen}
+        save_camera_config(camera_config_file, camera_config["mode"], chosen)
+        aggiorna_controlli_sorgente()
+        risultato.config(text=f"Sorgente attiva: {_camera_mode_label()}", fg="#1565c0")
+        win.destroy()
+
+    buttons = tk.Frame(win)
+    buttons.pack(fill="x", padx=27, pady=(4, 16))
+    tk.Button(buttons, text="Cerca fotocamere", command=lambda: threading.Thread(target=probe_worker, daemon=True).start()).pack(side="left", padx=4)
+    tk.Button(buttons, text="Prova anteprima", command=lambda: threading.Thread(target=preview_worker, daemon=True).start()).pack(side="left", padx=4)
+    tk.Button(buttons, text="Salva sorgente", command=save, bg="#00a650").pack(side="right", padx=4)
+    tk.Button(buttons, text="Annulla", command=win.destroy).pack(side="right", padx=4)
+
+    def close():
+        global camera_window
+        camera_window = None
+        win.destroy()
+    win.protocol("WM_DELETE_WINDOW", close)
+
+
+def mostra_candidati_master(candidates, measurement):
+    """Mostra sul Mac risultati provenienti da iPhone o webcam."""
+    win = tk.Toplevel(root)
+    source = measurement.get("source", "iPhone")
+    win.title(f"Candidati riconosciuti — {source}")
     win.geometry("980x720")
-    testo_misure = (f"Misura: {measurement.get('width_mm', 0):.1f} × "
-                    f"{measurement.get('length_mm', 0):.1f} × "
-                    f"{measurement.get('height_mm', 0):.1f} mm — "
-                    f"{measurement.get('color', 'Unknown')}")
+    if source == "iPhone":
+        testo_misure = (f"Misura: {measurement.get('width_mm', 0):.1f} × "
+                        f"{measurement.get('length_mm', 0):.1f} × "
+                        f"{measurement.get('height_mm', 0):.1f} mm — "
+                        f"{measurement.get('color', 'Unknown')}")
+    else:
+        testo_misure = (f"{source} — colore {measurement.get('color', 'Unknown')} — "
+                        f"{measurement.get('views', 1)} vista/e — "
+                        f"Brickognize {measurement.get('recognized_id', '—') or '—'}")
     tk.Label(win, text=testo_misure, font=("Arial", 15, "bold")).pack(pady=12)
     body = tk.Frame(win)
     body.pack(fill="both", expand=True, padx=12, pady=4)
@@ -5951,12 +6210,15 @@ btn_undo = tk.Button(frame_actions, text="⎌ Undo", command=annulla_ultimo_pezz
 btn_undo.pack(side="left", padx=2)
 btn_qr_master = tk.Button(frame_actions, text="▦ QR iPhone", command=mostra_qr_master, bg="#111827", fg="white")
 btn_qr_master.pack(side="left", padx=2)
-btn_calibra_iphone = tk.Button(frame_actions, text="◎ Calibra iPhone",
-                               command=apri_calibrazione_iphone_a4,
+btn_sorgente = tk.Button(frame_actions, text="◉ Sorgente", command=apri_sorgente_visiva,
+                         bg="#6a1b9a", fg="white")
+btn_sorgente.pack(side="left", padx=2)
+btn_calibra_iphone = tk.Button(frame_actions, text="◎ Calibra",
+                               command=calibra_sorgente_visiva,
                                bg="#ef6c00", fg="white")
 btn_calibra_iphone.pack(side="left", padx=2)
-btn_analizza_iphone = tk.Button(frame_actions, text="⌾ Analizza iPhone",
-                                command=lambda: invia_comando_iphone("analyze"),
+btn_analizza_iphone = tk.Button(frame_actions, text="⌾ Analizza",
+                                command=analizza_sorgente_visiva,
                                 bg="#2e7d32", fg="white")
 btn_analizza_iphone.pack(side="left", padx=2)
 
@@ -5968,8 +6230,18 @@ for _btn in (btn_add_set, btn_gestione, btn_aggiorna, btn_stato, btn_log,
 stile_pulsante(btn_magic, "#e3000b", "#111111", "#b80009", bold=True)
 stile_pulsante(btn_cerca_nuovi, "#006cb7", "#111111", "#00548f", bold=True)
 stile_pulsante(btn_qr_master, "#aeb8bf", "#111111", "#929da5", bold=True)
+stile_pulsante(btn_sorgente, "#8e44ad", "#111111", "#71368a", bold=True)
 stile_pulsante(btn_calibra_iphone, "#f47b20", "#111111", "#d9610c", bold=True)
 stile_pulsante(btn_analizza_iphone, "#00a650", "#111111", "#007f3d", bold=True)
+
+def aggiorna_controlli_sorgente():
+    label = _camera_mode_label()
+    btn_sorgente.config(text=f"◉ {label}")
+    btn_calibra_iphone.config(text=f"◎ Calibra {label}")
+    btn_analizza_iphone.config(text=f"⌾ Analizza {label}")
+    btn_qr_master.config(state="normal" if camera_config.get("mode") == "iphone" else "disabled")
+
+aggiorna_controlli_sorgente()
 
 chk_font = font.Font(size=18, weight="bold")
 chk_scurisci = tk.Checkbutton(
@@ -6071,8 +6343,9 @@ top_buttons = [
     (btn_cerca_nuovi, "🔍 Cerca Nuovi", "🔍"),
     (btn_undo, "⎌ Undo", "⎌"),
     (btn_qr_master, "▦ QR iPhone", "▦ QR"),
-    (btn_calibra_iphone, "◎ Calibra iPhone", "◎ Calibra"),
-    (btn_analizza_iphone, "⌾ Analizza iPhone", "⌾ Analizza"),
+    (btn_sorgente, "◉ Sorgente visiva", "◉ Sorgente"),
+    (btn_calibra_iphone, "◎ Calibra sorgente", "◎ Calibra"),
+    (btn_analizza_iphone, "⌾ Analizza sorgente", "⌾ Analizza"),
 ]
 
 toolbar_resize_job = None
@@ -6226,6 +6499,7 @@ def on_close():
         save_thread.join(timeout=3)
     save_log(force=True)
     save_ui_settings()
+    _close_camera_session()
     if master_server is not None:
         master_server.stop()
     root.destroy()
