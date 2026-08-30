@@ -28,7 +28,7 @@ import sys
 import subprocess
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 import functools
 import time
 import collections
@@ -58,7 +58,7 @@ def load_rebrickable_api_key():
 API_KEY = load_rebrickable_api_key()
 ICON_SIZE = 140
 MAX_THREADS = 3
-version = "v12.0-MASTER-MULTICAMERA-B1"
+version = "v12.2-MASTER-STABLE-LINK-B3"
 SAVE_COOLDOWN = 2  # secondi tra salvataggi batch
 MAX_IMAGE_CACHE_SIZE = 300  # max immagini in cache LRU
 
@@ -132,6 +132,7 @@ DEFAULT_UI_SETTINGS = {
 ui_settings = DEFAULT_UI_SETTINGS.copy()
 pending_restore_saved_filters = True
 master_server = None
+preview_transport = None
 master_pairing_info = None
 master_ui_requests = queue.Queue()
 import_ui_requests = queue.Queue()
@@ -4049,9 +4050,12 @@ def apri_sorgente_visiva():
     win.transient(root)
     mode_var = tk.StringVar(value=camera_config.get("mode", "iphone"))
     indices = list(camera_config.get("indices", [0, 1])) + [0, 1]
-    camera_a_var = tk.IntVar(value=indices[0])
-    camera_b_var = tk.IntVar(value=indices[1])
+    camera_a_var = tk.StringVar()
+    camera_b_var = tk.StringVar()
+    available_cameras = {"choices": [], "by_label": {}}
     status = tk.Label(win, text="Scegli come acquisire il pezzo.", font=("Arial", 12), wraplength=850)
+    preview_running = threading.Event()
+    preview_session = {"camera": None}
 
     tk.Label(win, text="Sorgente visiva", font=("Arial", 21, "bold")).pack(pady=(18, 6))
     modes = tk.Frame(win)
@@ -4070,10 +4074,10 @@ def apri_sorgente_visiva():
     selectors = tk.LabelFrame(win, text="Fotocamere USB", padx=12, pady=10)
     selectors.pack(fill="x", padx=27, pady=10)
     tk.Label(selectors, text="Vista principale (dall’alto):").grid(row=0, column=0, sticky="w", padx=6, pady=5)
-    menu_a = tk.OptionMenu(selectors, camera_a_var, *range(8))
+    menu_a = ttk.Combobox(selectors, textvariable=camera_a_var, state="readonly", width=52)
     menu_a.grid(row=0, column=1, sticky="w")
     tk.Label(selectors, text="Seconda vista (inclinata):").grid(row=1, column=0, sticky="w", padx=6, pady=5)
-    menu_b = tk.OptionMenu(selectors, camera_b_var, *range(8))
+    menu_b = ttk.Combobox(selectors, textvariable=camera_b_var, state="readonly", width=52)
     menu_b.grid(row=1, column=1, sticky="w")
 
     preview_frame = tk.Frame(win, bg="#242424", height=340)
@@ -4085,7 +4089,26 @@ def apri_sorgente_visiva():
     status.pack(pady=4)
 
     def selected_indices():
-        return [camera_a_var.get(), camera_b_var.get()] if mode_var.get() == "camera2" else [camera_a_var.get()]
+        labels = [camera_a_var.get(), camera_b_var.get()] if mode_var.get() == "camera2" else [camera_a_var.get()]
+        try:
+            return [available_cameras["by_label"][label] for label in labels]
+        except KeyError:
+            raise CameraError("Premi Cerca fotocamere e scegli le camere disponibili.")
+
+    def update_camera_choices(found):
+        labels = [choice.label for choice in found]
+        available_cameras["choices"] = found
+        available_cameras["by_label"] = {choice.label: choice.index for choice in found}
+        menu_a["values"] = labels
+        menu_b["values"] = labels
+        preferred_a, preferred_b = indices[0], indices[1]
+        if labels:
+            camera_a_var.set(next((c.label for c in found if c.index == preferred_a), labels[0]))
+            fallback_b = labels[1] if len(labels) > 1 else labels[0]
+            camera_b_var.set(next((c.label for c in found if c.index == preferred_b), fallback_b))
+        else:
+            camera_a_var.set("")
+            camera_b_var.set("")
 
     def show_frames(frames):
         for label, frame in zip((preview_a, preview_b), frames):
@@ -4099,22 +4122,64 @@ def apri_sorgente_visiva():
             preview_b.config(image="", text="Seconda vista non attiva")
             preview_b.image = None
 
+    def stop_preview():
+        preview_running.clear()
+        session = preview_session.pop("camera", None)
+        if session is not None:
+            try:
+                session.close()
+            except Exception:
+                pass
+        preview_session["camera"] = None
+
     def preview_worker():
+        stop_preview()
+        preview_running.set()
         try:
-            temp = CameraSession(selected_indices(), camera_calibration_dir)
-            temp.open()
-            frames = temp.preview()
-            temp.close()
-            root.after(0, lambda: show_frames(frames))
-            root.after(0, lambda: status.config(text="Anteprima acquisita. Il riquadro mostra il ritaglio usato da Brickognize."))
+            if mode_var.get() == "iphone":
+                if not master_pairing_info:
+                    raise CameraError("MASTER non attiva: avviala prima dell'anteprima iPhone.")
+                url = master_pairing_info["address"].rstrip("/") + "/api/preview"
+                headers = {"X-Master-PIN": master_pairing_info["pin"]}
+                root.after(0, lambda: status.config(text="Attendo i frame da LEGO Vision iPhone…", fg="black"))
+                while preview_running.is_set():
+                    response = requests.get(url, headers=headers, timeout=2)
+                    if response.status_code == 404:
+                        time.sleep(0.25)
+                        continue
+                    response.raise_for_status()
+                    image = Image.open(BytesIO(response.content)).convert("RGB")
+                    image.thumbnail((840, 500), Image.Resampling.LANCZOS)
+                    root.after(0, lambda img=image.copy(): show_iphone_frame(img))
+                    time.sleep(0.12)
+            else:
+                temp = CameraSession(selected_indices(), camera_calibration_dir)
+                preview_session["camera"] = temp
+                temp.open()
+                root.after(0, lambda: status.config(text="Anteprima webcam live attiva.", fg="black"))
+                while preview_running.is_set():
+                    frames = temp.preview()
+                    root.after(0, lambda rows=frames: show_frames(rows))
+                    time.sleep(0.08)
         except Exception as exc:
-            root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
+            if preview_running.is_set():
+                root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
+        finally:
+            stop_preview()
+
+    def show_iphone_frame(image):
+        photo = ImageTk.PhotoImage(image)
+        preview_a.config(image=photo, text="")
+        preview_a.image = photo
+        preview_b.config(image="", text="Streaming dalla fotocamera posteriore iPhone")
+        preview_b.image = None
 
     def probe_worker():
         root.after(0, lambda: status.config(text="Cerco le fotocamere collegate…", fg="black"))
         try:
             found = discover_cameras()
             text = ", ".join(choice.label for choice in found) or "Nessuna fotocamera rilevata"
+            root.after(0, lambda rows=found: update_camera_choices(rows))
             root.after(0, lambda t=text: status.config(text=t, fg="black"))
         except Exception as exc:
             root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
@@ -4130,20 +4195,23 @@ def apri_sorgente_visiva():
         save_camera_config(camera_config_file, camera_config["mode"], chosen)
         aggiorna_controlli_sorgente()
         risultato.config(text=f"Sorgente attiva: {_camera_mode_label()}", fg="#1565c0")
+        close_window()
+
+    def close_window():
+        global camera_window
+        stop_preview()
+        camera_window = None
         win.destroy()
 
     buttons = tk.Frame(win)
     buttons.pack(fill="x", padx=27, pady=(4, 16))
     tk.Button(buttons, text="Cerca fotocamere", command=lambda: threading.Thread(target=probe_worker, daemon=True).start()).pack(side="left", padx=4)
-    tk.Button(buttons, text="Prova anteprima", command=lambda: threading.Thread(target=preview_worker, daemon=True).start()).pack(side="left", padx=4)
+    tk.Button(buttons, text="Avvia anteprima live", command=lambda: threading.Thread(target=preview_worker, daemon=True).start()).pack(side="left", padx=4)
+    tk.Button(buttons, text="Ferma anteprima", command=stop_preview).pack(side="left", padx=4)
     tk.Button(buttons, text="Salva sorgente", command=save, bg="#00a650").pack(side="right", padx=4)
-    tk.Button(buttons, text="Annulla", command=win.destroy).pack(side="right", padx=4)
-
-    def close():
-        global camera_window
-        camera_window = None
-        win.destroy()
-    win.protocol("WM_DELETE_WINDOW", close)
+    tk.Button(buttons, text="Annulla", command=close_window).pack(side="right", padx=4)
+    win.protocol("WM_DELETE_WINDOW", close_window)
+    threading.Thread(target=probe_worker, daemon=True).start()
 
 
 def mostra_candidati_master(candidates, measurement):
@@ -4392,7 +4460,7 @@ def _master_action(payload):
 
 
 def start_master_server():
-    global master_server, master_pairing_info
+    global master_server, master_pairing_info, preview_transport
     config = load_master_config()
     if not config.get("enabled", True):
         return
@@ -4401,6 +4469,15 @@ def start_master_server():
         master_server = MasterServer(_master_snapshot, _master_action, config["pin"], config["port"])
         address = master_server.start()
         master_pairing_info = {"address": address, "pin": config["pin"]}
+        try:
+            from preview_transport import PreviewTransport
+            preview_transport = PreviewTransport(
+                config["pin"], config["port"], master_server.set_preview)
+            ws_port = preview_transport.start()
+            master_pairing_info["ws_port"] = ws_port
+        except Exception as exc:
+            preview_transport = None
+            print(f"[PREVIEW] Trasporto stabile non avviato: {exc}")
         print(f"[MASTER] Attiva su {address}  PIN {config['pin']}")
         root.title(f"LEGO Smista PRO - MASTER  {address}  PIN {config['pin']}")
     except Exception as exc:
@@ -6500,6 +6577,8 @@ def on_close():
     save_log(force=True)
     save_ui_settings()
     _close_camera_session()
+    if preview_transport is not None:
+        preview_transport.stop()
     if master_server is not None:
         master_server.stop()
     root.destroy()

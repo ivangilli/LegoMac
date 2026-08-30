@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 import json
+import platform
+import subprocess
 import threading
 import time
 
@@ -59,6 +61,19 @@ def require_opencv() -> None:
 def discover_cameras(max_index: int = 8) -> list[CameraChoice]:
     """Sonda pochi indici in modo deterministico e rilascia sempre i device."""
     require_opencv()
+    names: list[str] = []
+    if platform.system() == "Darwin":
+        try:
+            raw = subprocess.run(
+                ["system_profiler", "SPCameraDataType", "-json"],
+                capture_output=True, text=True, timeout=5, check=False,
+            )
+            payload = json.loads(raw.stdout or "{}")
+            names = [str(item.get("_name", "")).strip()
+                     for item in payload.get("SPCameraDataType", [])
+                     if str(item.get("_name", "")).strip()]
+        except (OSError, ValueError, subprocess.SubprocessError):
+            names = []
     found: list[CameraChoice] = []
     for index in range(max_index):
         cap = cv2.VideoCapture(index)
@@ -68,7 +83,8 @@ def discover_cameras(max_index: int = 8) -> list[CameraChoice]:
             ok, frame = cap.read()
             if ok and frame is not None and frame.size:
                 height, width = frame.shape[:2]
-                found.append(CameraChoice(index, f"Fotocamera {index} — {width}×{height}"))
+                name = names[len(found)] if len(found) < len(names) else f"Fotocamera {index}"
+                found.append(CameraChoice(index, f"{name} — {width}×{height} (indice {index})"))
         finally:
             cap.release()
     return found
