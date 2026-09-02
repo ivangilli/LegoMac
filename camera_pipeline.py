@@ -97,10 +97,16 @@ def discover_cameras(max_index: int = 8) -> list[CameraChoice]:
                 time.sleep(0.08)
             if ok and frame is not None and frame.size:
                 height, width = frame.shape[:2]
-                # I nomi di system_profiler seguono gli indici AVFoundation:
-                # usare len(found) etichettava erroneamente l'indice 1 come 0.
-                name = names[index] if index < len(names) else f"Fotocamera {index}"
-                found.append(CameraChoice(index, f"{name} — {width}×{height} (indice {index})"))
+                detail = f"{width}×{height}"
+            else:
+                # Un device aperto è comunque selezionabile: alcune UVC cam
+                # non consegnano frame finché la scansione non ha rilasciato
+                # tutti gli altri ingressi o finché un'altra app le occupa.
+                detail = "disponibile"
+            # I nomi di system_profiler seguono gli indici AVFoundation:
+            # usare len(found) etichettava erroneamente l'indice 1 come 0.
+            name = names[index] if index < len(names) else f"Fotocamera {index}"
+            found.append(CameraChoice(index, f"{name} — {detail} (indice {index})"))
         finally:
             cap.release()
     return found
