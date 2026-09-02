@@ -34,7 +34,6 @@ import functools
 import time
 import collections
 import secrets
-import queue
 from datetime import datetime
 from html import escape
 
@@ -3987,21 +3986,113 @@ def _webcam_candidates(predictions, detected_color):
     return rows[:8]
 
 
+def apri_calibrazione_webcam():
+    """Guida passo passo con scatto di controllo per una o due webcam."""
+    win = tk.Toplevel(root)
+    win.title("Calibrazione guidata fotocamera LEGO")
+    win.geometry("720x760")
+    win.transient(root)
+
+    tk.Label(win, text="Calibrazione guidata fotocamera",
+             font=("Arial", 20, "bold"), fg="black").pack(pady=(18, 5))
+    tk.Label(win, text=f"Sorgente: {_camera_mode_label()}",
+             font=("Arial", 12, "bold"), fg="black").pack()
+
+    guide = tk.Frame(win)
+    guide.pack(fill="x", padx=28, pady=14)
+    instructions = (
+        ("1", "Ferma eventuali anteprime e chiudi QuickTime."),
+        ("2", "Lascia il piano completamente vuoto, fermo e ben illuminato."),
+        ("3", "Premi “Acquisisci piano vuoto” e attendi la conferma verde."),
+        ("4", "Metti un pezzo LEGO al centro e premi “Prova scatto”."),
+    )
+    for number, text in instructions:
+        row = tk.Frame(guide)
+        row.pack(fill="x", pady=5)
+        tk.Label(row, text=number, width=3, font=("Arial", 15, "bold"),
+                 fg="black", bg="#ffd500").pack(side="left", padx=(0, 10))
+        tk.Label(row, text=text, font=("Arial", 12), fg="black",
+                 justify="left", wraplength=610).pack(side="left", anchor="w")
+
+    preview = tk.Label(win, text="Qui comparirà lo scatto di prova",
+                       bg="#d9dde0", fg="black", font=("Arial", 12),
+                       width=80, height=20)
+    preview.pack(fill="both", expand=True, padx=28, pady=(4, 10))
+    status = tk.Label(win, text="Pronto: prepara il piano vuoto.",
+                      font=("Arial", 12, "bold"), fg="black", wraplength=650)
+    status.pack(pady=(0, 10))
+
+    events = queue.Queue()
+
+    def capture_plane_worker():
+        try:
+            session = _ensure_camera_session()
+            session.calibrate_plane()
+            events.put(("plane", None))
+        except Exception as exc:
+            events.put(("error", str(exc)))
+
+    def test_shot_worker():
+        try:
+            session = _ensure_camera_session()
+            frames = session.preview()
+            events.put(("shot", frames[0].frame_bgr.copy()))
+        except Exception as exc:
+            events.put(("error", str(exc)))
+
+    def capture_plane():
+        plane_button.config(state="disabled")
+        status.config(text="Acquisizione del piano vuoto in corso…", fg="black")
+        threading.Thread(target=capture_plane_worker, daemon=True).start()
+
+    def test_shot():
+        shot_button.config(state="disabled")
+        status.config(text="Scatto di prova in corso…", fg="black")
+        threading.Thread(target=test_shot_worker, daemon=True).start()
+
+    def poll_events():
+        try:
+            while True:
+                kind, payload = events.get_nowait()
+                plane_button.config(state="normal")
+                shot_button.config(state="normal")
+                if kind == "plane":
+                    status.config(text="✓ Piano vuoto salvato. Ora metti un pezzo LEGO al centro.", fg="#087f23")
+                    risultato.config(text=f"Piano salvato per {_camera_mode_label()}.", fg="#2e7d32")
+                elif kind == "shot":
+                    rgb = payload[:, :, ::-1]
+                    image = Image.fromarray(rgb)
+                    image.thumbnail((650, 390), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(image)
+                    preview.config(image=photo, text="", width=0, height=0)
+                    preview.image = photo
+                    status.config(text="✓ Scatto visibile: calibrazione completata.", fg="#087f23")
+                else:
+                    status.config(text=f"Errore: {payload}", fg="#c62828")
+        except queue.Empty:
+            pass
+        if win.winfo_exists():
+            win.after(100, poll_events)
+
+    buttons = tk.Frame(win)
+    buttons.pack(fill="x", padx=28, pady=(0, 18))
+    plane_button = tk.Button(buttons, text="1. Acquisisci piano vuoto", command=capture_plane)
+    stile_pulsante(plane_button, "#ffd500", "#111111", "#e6bf00", bold=True, padx=12, pady=9)
+    plane_button.pack(side="left", padx=4)
+    shot_button = tk.Button(buttons, text="2. Prova scatto", command=test_shot)
+    stile_pulsante(shot_button, "#00a650", "#111111", "#07883f", bold=True, padx=12, pady=9)
+    shot_button.pack(side="left", padx=4)
+    close_button = tk.Button(buttons, text="Chiudi", command=win.destroy)
+    stile_pulsante(close_button, "#aeb8bf", "#111111", "#909ba3", bold=True, padx=12, pady=9)
+    close_button.pack(side="right", padx=4)
+    win.after(100, poll_events)
+
+
 def calibra_sorgente_visiva():
     if camera_config.get("mode") == "iphone":
         apri_calibrazione_iphone_a4()
         return
-    risultato.config(text="Calibrazione: lascia il piano vuoto…", fg="#ef6c00")
-
-    def worker():
-        try:
-            session = _ensure_camera_session()
-            session.calibrate_plane()
-            root.after(0, lambda: risultato.config(
-                text=f"Piano salvato per {_camera_mode_label()}. Ora metti un pezzo al centro.", fg="#2e7d32"))
-        except Exception as exc:
-            root.after(0, lambda e=str(exc): messagebox.showerror("Calibrazione fotocamere", e))
-    threading.Thread(target=worker, daemon=True).start()
+    apri_calibrazione_webcam()
 
 
 def analizza_sorgente_visiva():
