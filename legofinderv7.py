@@ -21,6 +21,7 @@ import requests
 from io import BytesIO
 import json
 import os
+import queue
 import threading
 import re
 import shutil
@@ -4053,6 +4054,7 @@ def apri_sorgente_visiva():
     camera_a_var = tk.StringVar()
     camera_b_var = tk.StringVar()
     available_cameras = {"choices": [], "by_label": {}}
+    probe_results = queue.Queue()
     status = tk.Label(win, text="Scegli come acquisire il pezzo.", font=("Arial", 12), wraplength=850)
     preview_running = threading.Event()
     preview_session = {"camera": None}
@@ -4175,14 +4177,31 @@ def apri_sorgente_visiva():
         preview_b.image = None
 
     def probe_worker():
-        root.after(0, lambda: status.config(text="Cerco le fotocamere collegate…", fg="black"))
         try:
             found = discover_cameras()
-            text = ", ".join(choice.label for choice in found) or "Nessuna fotocamera rilevata"
-            root.after(0, lambda rows=found: update_camera_choices(rows))
-            root.after(0, lambda t=text: status.config(text=t, fg="black"))
+            print(f"[CAMERA] rilevate: {[choice.label for choice in found]}")
+            probe_results.put((found, None))
         except Exception as exc:
-            root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
+            probe_results.put((None, str(exc)))
+
+    def poll_probe_results():
+        try:
+            while True:
+                found, error = probe_results.get_nowait()
+                if error:
+                    status.config(text=error, fg="#c62828")
+                    continue
+                update_camera_choices(found)
+                text = ", ".join(choice.label for choice in found) or "Nessuna fotocamera rilevata"
+                status.config(text=text, fg="black")
+        except queue.Empty:
+            pass
+        if win.winfo_exists():
+            win.after(100, poll_probe_results)
+
+    def start_probe():
+        status.config(text="Cerco le fotocamere collegate…", fg="black")
+        threading.Thread(target=probe_worker, daemon=True).start()
 
     def save():
         global camera_config
@@ -4205,13 +4224,14 @@ def apri_sorgente_visiva():
 
     buttons = tk.Frame(win)
     buttons.pack(fill="x", padx=27, pady=(4, 16))
-    tk.Button(buttons, text="Cerca fotocamere", command=lambda: threading.Thread(target=probe_worker, daemon=True).start()).pack(side="left", padx=4)
+    tk.Button(buttons, text="Cerca fotocamere", command=start_probe).pack(side="left", padx=4)
     tk.Button(buttons, text="Avvia anteprima live", command=lambda: threading.Thread(target=preview_worker, daemon=True).start()).pack(side="left", padx=4)
     tk.Button(buttons, text="Ferma anteprima", command=stop_preview).pack(side="left", padx=4)
     tk.Button(buttons, text="Salva sorgente", command=save, bg="#00a650").pack(side="right", padx=4)
     tk.Button(buttons, text="Annulla", command=close_window).pack(side="right", padx=4)
     win.protocol("WM_DELETE_WINDOW", close_window)
-    threading.Thread(target=probe_worker, daemon=True).start()
+    win.after(100, poll_probe_results)
+    start_probe()
 
 
 def mostra_candidati_master(candidates, measurement):
