@@ -58,6 +58,13 @@ def require_opencv() -> None:
         )
 
 
+def _open_camera(index: int):
+    """Apre una camera col backend nativo su macOS."""
+    if platform.system() == "Darwin":
+        return cv2.VideoCapture(index, cv2.CAP_AVFOUNDATION)
+    return cv2.VideoCapture(index)
+
+
 def discover_cameras(max_index: int = 8) -> list[CameraChoice]:
     """Sonda pochi indici in modo deterministico e rilascia sempre i device."""
     require_opencv()
@@ -76,14 +83,23 @@ def discover_cameras(max_index: int = 8) -> list[CameraChoice]:
             names = []
     found: list[CameraChoice] = []
     for index in range(max_index):
-        cap = cv2.VideoCapture(index)
+        cap = _open_camera(index)
         try:
             if not cap.isOpened():
                 continue
-            ok, frame = cap.read()
+            ok, frame = False, None
+            # Alcune webcam UVC impiegano qualche frame prima di fornire
+            # un'immagine valida, soprattutto quando passano da un hub USB.
+            for _ in range(8):
+                ok, frame = cap.read()
+                if ok and frame is not None and frame.size:
+                    break
+                time.sleep(0.08)
             if ok and frame is not None and frame.size:
                 height, width = frame.shape[:2]
-                name = names[len(found)] if len(found) < len(names) else f"Fotocamera {index}"
+                # I nomi di system_profiler seguono gli indici AVFoundation:
+                # usare len(found) etichettava erroneamente l'indice 1 come 0.
+                name = names[index] if index < len(names) else f"Fotocamera {index}"
                 found.append(CameraChoice(index, f"{name} — {width}×{height} (indice {index})"))
         finally:
             cap.release()
@@ -189,7 +205,7 @@ class CameraSession:
         opened = []
         try:
             for index in self.indices:
-                cap = cv2.VideoCapture(index)
+                cap = _open_camera(index)
                 if not cap.isOpened():
                     cap.release()
                     raise CameraError(f"Fotocamera {index} non disponibile o già utilizzata.")
