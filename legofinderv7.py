@@ -4055,6 +4055,7 @@ def apri_sorgente_visiva():
     camera_b_var = tk.StringVar()
     available_cameras = {"choices": [], "by_label": {}}
     probe_results = queue.Queue()
+    preview_results = queue.Queue(maxsize=2)
     status = tk.Label(win, text="Scegli come acquisire il pezzo.", font=("Arial", 12), wraplength=850)
     preview_running = threading.Event()
     preview_session = {"camera": None}
@@ -4143,7 +4144,7 @@ def apri_sorgente_visiva():
                     raise CameraError("MASTER non attiva: avviala prima dell'anteprima iPhone.")
                 url = master_pairing_info["address"].rstrip("/") + "/api/preview"
                 headers = {"X-Master-PIN": master_pairing_info["pin"]}
-                root.after(0, lambda: status.config(text="Attendo i frame da LEGO Vision iPhone…", fg="black"))
+                queue_preview_result(("status", "Attendo i frame da LEGO Vision iPhone…"))
                 while preview_running.is_set():
                     response = requests.get(url, headers=headers, timeout=2)
                     if response.status_code == 404:
@@ -4152,22 +4153,39 @@ def apri_sorgente_visiva():
                     response.raise_for_status()
                     image = Image.open(BytesIO(response.content)).convert("RGB")
                     image.thumbnail((840, 500), Image.Resampling.LANCZOS)
-                    root.after(0, lambda img=image.copy(): show_iphone_frame(img))
+                    queue_preview_result(("iphone", image.copy()))
                     time.sleep(0.12)
             else:
                 temp = CameraSession(selected_indices(), camera_calibration_dir)
                 preview_session["camera"] = temp
                 temp.open()
-                root.after(0, lambda: status.config(text="Anteprima webcam live attiva.", fg="black"))
+                print(f"[CAMERA] anteprima aperta sugli indici {temp.indices}")
+                queue_preview_result(("status", "Anteprima webcam live attiva."))
+                first_frame = True
                 while preview_running.is_set():
                     frames = temp.preview()
-                    root.after(0, lambda rows=frames: show_frames(rows))
+                    if first_frame:
+                        shape = frames[0].frame_bgr.shape
+                        print(f"[CAMERA] primo frame anteprima: {shape}")
+                        first_frame = False
+                    queue_preview_result(("frames", frames))
                     time.sleep(0.08)
         except Exception as exc:
             if preview_running.is_set():
-                root.after(0, lambda e=str(exc): status.config(text=e, fg="#c62828"))
+                print(f"[CAMERA] errore anteprima: {exc}")
+                queue_preview_result(("error", str(exc)))
         finally:
             stop_preview()
+
+    def queue_preview_result(item):
+        try:
+            preview_results.put_nowait(item)
+        except queue.Full:
+            try:
+                preview_results.get_nowait()
+            except queue.Empty:
+                pass
+            preview_results.put_nowait(item)
 
     def show_iphone_frame(image):
         photo = ImageTk.PhotoImage(image)
@@ -4194,6 +4212,19 @@ def apri_sorgente_visiva():
                 update_camera_choices(found)
                 text = ", ".join(choice.label for choice in found) or "Nessuna fotocamera rilevata"
                 status.config(text=text, fg="black")
+        except queue.Empty:
+            pass
+        try:
+            while True:
+                kind, payload = preview_results.get_nowait()
+                if kind == "frames":
+                    show_frames(payload)
+                elif kind == "iphone":
+                    show_iphone_frame(payload)
+                elif kind == "error":
+                    status.config(text=payload, fg="#c62828")
+                else:
+                    status.config(text=payload, fg="black")
         except queue.Empty:
             pass
         if win.winfo_exists():
