@@ -33,4 +33,4 @@ if missing:
 
 py_compile.compile(str(TARGET), doraise=True)
 py_compile.compile(str(CAMERA), doraise=True)
-print("LegoMac v12 multicamera presente; sintassi Python verificata.")
+print("LegoMac v12.2 stable-link presente; sintassi Python verificata.")
