@@ -4048,7 +4048,7 @@ def apri_calibrazione_webcam():
         ("1", "Ferma eventuali anteprime e chiudi QuickTime."),
         ("2", "Lascia il piano completamente vuoto, fermo e ben illuminato."),
         ("3", "Premi “Acquisisci piano vuoto” e attendi la conferma verde."),
-        ("4", "Metti un pezzo LEGO al centro e premi “Prova scatto”."),
+        ("4", "Controlla l’anteprima live, metti un pezzo al centro e premi “Prova scatto”."),
     )
     for number, text in instructions:
         row = tk.Frame(guide, bg=colors["panel"])
@@ -4059,16 +4059,41 @@ def apri_calibrazione_webcam():
                  bg=colors["panel"],
                  justify="left", wraplength=610).pack(side="left", anchor="w")
 
-    preview = tk.Label(win, text="Qui comparirà lo scatto di prova",
+    preview = tk.Label(win, text="Avvio anteprima live…",
                        bg=colors["preview"], fg=colors["text"], font=("Arial", 12),
                        width=80, height=20)
     preview.pack(fill="both", expand=True, padx=28, pady=(4, 10))
-    status = tk.Label(win, text="Pronto: prepara il piano vuoto.",
+    status = tk.Label(win, text="Avvio la fotocamera: prepara il piano vuoto.",
                       font=("Arial", 12, "bold"), fg=colors["text"],
                       bg=colors["window"], wraplength=650)
     status.pack(pady=(0, 10))
 
     events = queue.Queue()
+    live_frames = queue.Queue(maxsize=1)
+    live_running = threading.Event()
+    live_running.set()
+
+    def live_preview_worker():
+        try:
+            session = _ensure_camera_session()
+            first_frame = True
+            while live_running.is_set():
+                frame = session.preview()[0].frame_bgr.copy()
+                if first_frame:
+                    events.put(("live", None))
+                    first_frame = False
+                try:
+                    live_frames.put_nowait(frame)
+                except queue.Full:
+                    try:
+                        live_frames.get_nowait()
+                    except queue.Empty:
+                        pass
+                    live_frames.put_nowait(frame)
+                time.sleep(0.08)
+        except Exception as exc:
+            if live_running.is_set():
+                events.put(("error", str(exc)))
 
     def capture_plane_worker():
         try:
@@ -4097,6 +4122,19 @@ def apri_calibrazione_webcam():
         threading.Thread(target=test_shot_worker, daemon=True).start()
 
     def poll_events():
+        latest_frame = None
+        try:
+            while True:
+                latest_frame = live_frames.get_nowait()
+        except queue.Empty:
+            pass
+        if latest_frame is not None:
+            rgb = latest_frame[:, :, ::-1]
+            image = Image.fromarray(rgb)
+            image.thumbnail((650, 390), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(image)
+            preview.config(image=photo, text="", width=0, height=0)
+            preview.image = photo
         try:
             while True:
                 kind, payload = events.get_nowait()
@@ -4105,6 +4143,8 @@ def apri_calibrazione_webcam():
                 if kind == "plane":
                     status.config(text="✓ Piano vuoto salvato. Ora metti un pezzo LEGO al centro.", fg=colors["success"])
                     risultato.config(text=f"Piano salvato per {_camera_mode_label()}.", fg="#2e7d32")
+                elif kind == "live":
+                    status.config(text="Anteprima live attiva: prepara il piano vuoto.", fg=colors["text"])
                 elif kind == "shot":
                     rgb = payload[:, :, ::-1]
                     image = Image.fromarray(rgb)
@@ -4120,6 +4160,10 @@ def apri_calibrazione_webcam():
         if win.winfo_exists():
             win.after(100, poll_events)
 
+    def close_guide():
+        live_running.clear()
+        win.destroy()
+
     buttons = tk.Frame(win, bg=colors["window"])
     buttons.pack(fill="x", padx=28, pady=(0, 18))
     plane_button = tk.Button(buttons, text="1. Acquisisci piano vuoto", command=capture_plane)
@@ -4128,10 +4172,12 @@ def apri_calibrazione_webcam():
     shot_button = tk.Button(buttons, text="2. Prova scatto", command=test_shot)
     stile_pulsante(shot_button, "#00a650", "#111111", "#07883f", bold=True, padx=12, pady=9)
     shot_button.pack(side="left", padx=4)
-    close_button = tk.Button(buttons, text="Chiudi", command=win.destroy)
+    close_button = tk.Button(buttons, text="Chiudi", command=close_guide)
     stile_pulsante(close_button, "#aeb8bf", "#111111", "#909ba3", bold=True, padx=12, pady=9)
     close_button.pack(side="right", padx=4)
+    win.protocol("WM_DELETE_WINDOW", close_guide)
     win.after(100, poll_events)
+    threading.Thread(target=live_preview_worker, daemon=True).start()
 
 
 def calibra_sorgente_visiva():
@@ -4279,6 +4325,9 @@ def apri_sorgente_visiva():
 
     def stop_preview():
         preview_running.clear()
+        run_event = preview_session.pop("event", None)
+        if run_event is not None:
+            run_event.clear()
         session = preview_session.pop("camera", None)
         if session is not None:
             try:
@@ -4287,17 +4336,16 @@ def apri_sorgente_visiva():
                 pass
         preview_session["camera"] = None
 
-    def preview_worker():
-        stop_preview()
-        preview_running.set()
+    def preview_worker(selected_mode, chosen_indices, run_event):
+        temp = None
         try:
-            if mode_var.get() == "iphone":
+            if selected_mode == "iphone":
                 if not master_pairing_info:
                     raise CameraError("MASTER non attiva: avviala prima dell'anteprima iPhone.")
                 url = master_pairing_info["address"].rstrip("/") + "/api/preview"
                 headers = {"X-Master-PIN": master_pairing_info["pin"]}
                 queue_preview_result(("status", "Attendo i frame da LEGO Vision iPhone…"))
-                while preview_running.is_set():
+                while run_event.is_set():
                     response = requests.get(url, headers=headers, timeout=2)
                     if response.status_code == 404:
                         time.sleep(0.25)
@@ -4308,13 +4356,13 @@ def apri_sorgente_visiva():
                     queue_preview_result(("iphone", image.copy()))
                     time.sleep(0.12)
             else:
-                temp = CameraSession(selected_indices(), camera_calibration_dir)
+                temp = CameraSession(chosen_indices, camera_calibration_dir)
                 preview_session["camera"] = temp
                 temp.open()
                 print(f"[CAMERA] anteprima aperta sugli indici {temp.indices}")
                 queue_preview_result(("status", "Anteprima webcam live attiva."))
                 first_frame = True
-                while preview_running.is_set():
+                while run_event.is_set():
                     frames = temp.preview()
                     if first_frame:
                         shape = frames[0].frame_bgr.shape
@@ -4323,11 +4371,31 @@ def apri_sorgente_visiva():
                     queue_preview_result(("frames", frames))
                     time.sleep(0.08)
         except Exception as exc:
-            if preview_running.is_set():
+            if run_event.is_set():
                 print(f"[CAMERA] errore anteprima: {exc}")
                 queue_preview_result(("error", str(exc)))
         finally:
-            stop_preview()
+            run_event.clear()
+            if temp is not None:
+                temp.close()
+
+    def start_preview():
+        try:
+            selected_mode = mode_var.get()
+            chosen = [] if selected_mode == "iphone" else selected_indices()
+        except Exception as exc:
+            status.config(text=str(exc), fg=colors["error"])
+            return
+        stop_preview()
+        run_event = threading.Event()
+        run_event.set()
+        preview_running.set()
+        preview_session["event"] = run_event
+        threading.Thread(
+            target=preview_worker,
+            args=(selected_mode, chosen, run_event),
+            daemon=True,
+        ).start()
 
     def queue_preview_result(item):
         try:
@@ -4408,7 +4476,7 @@ def apri_sorgente_visiva():
     buttons = tk.Frame(win, bg=colors["window"])
     buttons.pack(fill="x", padx=27, pady=(4, 16))
     tk.Button(buttons, text="Cerca fotocamere", command=start_probe).pack(side="left", padx=4)
-    tk.Button(buttons, text="Avvia anteprima live", command=lambda: threading.Thread(target=preview_worker, daemon=True).start()).pack(side="left", padx=4)
+    tk.Button(buttons, text="Avvia anteprima live", command=start_preview).pack(side="left", padx=4)
     tk.Button(buttons, text="Ferma anteprima", command=stop_preview).pack(side="left", padx=4)
     tk.Button(buttons, text="Salva sorgente", command=save, bg="#00a650").pack(side="right", padx=4)
     tk.Button(buttons, text="Annulla", command=close_window).pack(side="right", padx=4)
