@@ -3934,6 +3934,20 @@ def _camera_ui_colors():
     }
 
 
+def _center_camera_window(win, width, height):
+    """Centra una finestra camera sulla MASTER senza uscire dallo schermo."""
+    root.update_idletasks()
+    screen_width = win.winfo_screenwidth()
+    screen_height = win.winfo_screenheight()
+    parent_width = max(root.winfo_width(), 1)
+    parent_height = max(root.winfo_height(), 1)
+    x = root.winfo_rootx() + (parent_width - width) // 2
+    y = root.winfo_rooty() + (parent_height - height) // 2
+    x = max(0, min(x, screen_width - width))
+    y = max(24, min(y, screen_height - height))
+    win.geometry(f"{width}x{height}+{x}+{y}")
+
+
 def _close_camera_session():
     global camera_session
     if camera_session is not None:
@@ -4015,8 +4029,8 @@ def apri_calibrazione_webcam():
     """Guida passo passo con scatto di controllo per una o due webcam."""
     win = tk.Toplevel(root)
     win.title("Calibrazione guidata fotocamera LEGO")
-    win.geometry("720x760")
     win.transient(root)
+    _center_camera_window(win, 720, 760)
     colors = _camera_ui_colors()
     win.configure(bg=colors["window"])
 
@@ -4170,8 +4184,8 @@ def apri_sorgente_visiva():
     win = tk.Toplevel(root)
     camera_window = win
     win.title("Sorgente visiva LEGO")
-    win.geometry("940x720")
     win.transient(root)
+    _center_camera_window(win, 940, 720)
     colors = _camera_ui_colors()
     win.configure(bg=colors["window"])
     mode_var = tk.StringVar(value=camera_config.get("mode", "iphone"))
