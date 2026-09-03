@@ -3826,20 +3826,22 @@ def apri_calibrazione_iphone_a4():
     """Pannello MASTER per la calibrazione A4 di LEGO Vision v13.1 B17."""
     win = tk.Toplevel(root)
     win.title("Calibrazione iPhone A4 — build 17")
-    win.geometry("680x680")
     win.transient(root)
+    _center_camera_window(win, 720, 860)
+    colors = _camera_ui_colors()
+    win.configure(bg=colors["window"])
 
     tk.Label(
         win,
         text="Calibrazione guidata iPhone — foglio A4",
         font=("Arial", 18, "bold"),
-        fg="black",
+        fg=colors["text"], bg=colors["window"],
     ).pack(pady=(18, 6))
     stato = tk.Label(
         win,
         text="Verifico collegamento iPhone…",
         font=("Arial", 12),
-        fg="black",
+        fg=colors["text"], bg=colors["window"],
         wraplength=610,
         justify="center",
     )
@@ -3847,10 +3849,10 @@ def apri_calibrazione_iphone_a4():
 
     def send(command, text):
         invia_comando_iphone(command)
-        stato.config(text=text, fg="black")
+        stato.config(text=text, fg=colors["text"])
 
-    steps = tk.Frame(win)
-    steps.pack(fill="both", expand=True, padx=22)
+    steps = tk.Frame(win, bg=colors["window"])
+    steps.pack(fill="x", padx=22)
     rows = [
         ("1", "Apri guida A4 su iPhone", "a4_start",
          "Apri la guida sull’iPhone e inquadra tutto il foglio A4 con i quattro marker.", "#006cb7"),
@@ -3864,23 +3866,88 @@ def apri_calibrazione_iphone_a4():
          "La guida viene chiusa e l’iPhone torna al riconoscimento.", "#00a650"),
     ]
     for number, label, command, message, color in rows:
-        row = tk.Frame(steps)
+        row = tk.Frame(steps, bg=colors["window"])
         row.pack(fill="x", pady=7)
         tk.Label(row, text=number, width=3, font=("Arial", 16, "bold"),
-                 fg="black").pack(side="left")
+                 fg="black", bg="#ffd500").pack(side="left", padx=(0, 8))
         button = tk.Button(row, text=label, command=lambda c=command, m=message: send(c, m))
         stile_pulsante(button, color, "#111111", color, bold=True, padx=12, pady=9)
         button.pack(side="left", fill="x", expand=True)
+
+    preview = tk.Label(
+        win, text="Attendo l’anteprima live dall’iPhone…",
+        font=("Arial", 12), fg=colors["text"], bg=colors["preview"],
+        height=13,
+    )
+    preview.pack(fill="both", expand=True, padx=24, pady=(12, 4))
+    preview_status = tk.Label(
+        win, text="Apri la guida A4 per avviare l’invio delle immagini.",
+        font=("Arial", 10), fg=colors["muted"], bg=colors["window"],
+    )
+    preview_status.pack(pady=(0, 2))
 
     tk.Label(
         win,
         text=("Controlla la barra da 50 mm sul foglio stampato. Durante i passaggi "
               "2 e 3 non muovere l’iPhone né il foglio A4."),
         font=("Arial", 11),
-        fg="black",
+        fg=colors["text"], bg=colors["window"],
         wraplength=610,
         justify="left",
     ).pack(padx=24, pady=12)
+
+    preview_frames = queue.Queue(maxsize=1)
+    preview_running = threading.Event()
+    preview_running.set()
+
+    def iphone_preview_worker():
+        while preview_running.is_set():
+            try:
+                if not master_pairing_info:
+                    time.sleep(0.4)
+                    continue
+                url = master_pairing_info["address"].rstrip("/") + "/api/preview"
+                headers = {"X-Master-PIN": master_pairing_info["pin"]}
+                response = requests.get(url, headers=headers, timeout=2)
+                if response.status_code == 404:
+                    time.sleep(0.25)
+                    continue
+                response.raise_for_status()
+                image = Image.open(BytesIO(response.content)).convert("RGB")
+                image.thumbnail((660, 300), Image.Resampling.LANCZOS)
+                try:
+                    preview_frames.put_nowait(image.copy())
+                except queue.Full:
+                    try:
+                        preview_frames.get_nowait()
+                    except queue.Empty:
+                        pass
+                    preview_frames.put_nowait(image.copy())
+                time.sleep(0.12)
+            except Exception:
+                time.sleep(0.5)
+
+    def refresh_preview():
+        if not win.winfo_exists():
+            return
+        image = None
+        try:
+            while True:
+                image = preview_frames.get_nowait()
+        except queue.Empty:
+            pass
+        if image is not None:
+            photo = ImageTk.PhotoImage(image)
+            preview.config(image=photo, text="", height=0)
+            preview.image = photo
+            preview_status.config(text="Anteprima iPhone live attiva.", fg=colors["success"])
+        win.after(100, refresh_preview)
+
+    def close_guide():
+        preview_running.clear()
+        win.destroy()
+
+    win.protocol("WM_DELETE_WINDOW", close_guide)
 
     def refresh_status():
         if not win.winfo_exists():
@@ -3893,14 +3960,16 @@ def apri_calibrazione_iphone_a4():
             detail = str(a4.get("message", "")).strip()
             stato.config(
                 text=f"● iPhone B17 collegato — Piano: {plane}  Plate 2×4: {reference}\n{detail}",
-                fg="black",
+                fg=colors["text"],
             )
         elif master_server is None:
-            stato.config(text="MASTER non attiva", fg="black")
+            stato.config(text="MASTER non attiva", fg=colors["error"])
         else:
-            stato.config(text="Attendo LEGO Vision v13.1 build 17 sulla rete locale…", fg="black")
+            stato.config(text="Attendo LEGO Vision v13.1 build 17 sulla rete locale…", fg=colors["text"])
         win.after(1200, refresh_status)
 
+    threading.Thread(target=iphone_preview_worker, daemon=True).start()
+    refresh_preview()
     refresh_status()
 
 
