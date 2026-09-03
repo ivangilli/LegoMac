@@ -3909,6 +3909,31 @@ def _camera_mode_label(mode=None):
     return {"iphone": "iPhone", "camera1": "1 fotocamera", "camera2": "2 fotocamere"}.get(value, "iPhone")
 
 
+def _camera_ui_colors():
+    """Palette coerente con l'aspetto chiaro/scuro attivo in macOS."""
+    dark = False
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                ["defaults", "read", "-g", "AppleInterfaceStyle"],
+                capture_output=True, text=True, timeout=2, check=False,
+            )
+            dark = result.stdout.strip().lower() == "dark"
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if dark:
+        return {
+            "window": "#242424", "panel": "#303030", "card": "#383838",
+            "text": "#f2f2f2", "muted": "#d3d3d3", "border": "#666666",
+            "preview": "#181818", "success": "#66df83", "error": "#ff7777",
+        }
+    return {
+        "window": "#f2f2f2", "panel": "#e7e7e7", "card": "#ffffff",
+        "text": "#111111", "muted": "#333333", "border": "#9b9b9b",
+        "preview": "#d9dde0", "success": "#087f23", "error": "#c62828",
+    }
+
+
 def _close_camera_session():
     global camera_session
     if camera_session is not None:
@@ -3992,13 +4017,18 @@ def apri_calibrazione_webcam():
     win.title("Calibrazione guidata fotocamera LEGO")
     win.geometry("720x760")
     win.transient(root)
+    colors = _camera_ui_colors()
+    win.configure(bg=colors["window"])
 
     tk.Label(win, text="Calibrazione guidata fotocamera",
-             font=("Arial", 20, "bold"), fg="black").pack(pady=(18, 5))
+             font=("Arial", 20, "bold"), fg=colors["text"],
+             bg=colors["window"]).pack(pady=(18, 5))
     tk.Label(win, text=f"Sorgente: {_camera_mode_label()}",
-             font=("Arial", 12, "bold"), fg="black").pack()
+             font=("Arial", 12, "bold"), fg=colors["muted"],
+             bg=colors["window"]).pack()
 
-    guide = tk.Frame(win)
+    guide = tk.Frame(win, bg=colors["panel"], highlightthickness=1,
+                     highlightbackground=colors["border"])
     guide.pack(fill="x", padx=28, pady=14)
     instructions = (
         ("1", "Ferma eventuali anteprime e chiudi QuickTime."),
@@ -4007,19 +4037,21 @@ def apri_calibrazione_webcam():
         ("4", "Metti un pezzo LEGO al centro e premi “Prova scatto”."),
     )
     for number, text in instructions:
-        row = tk.Frame(guide)
+        row = tk.Frame(guide, bg=colors["panel"])
         row.pack(fill="x", pady=5)
         tk.Label(row, text=number, width=3, font=("Arial", 15, "bold"),
                  fg="black", bg="#ffd500").pack(side="left", padx=(0, 10))
-        tk.Label(row, text=text, font=("Arial", 12), fg="black",
+        tk.Label(row, text=text, font=("Arial", 12), fg=colors["text"],
+                 bg=colors["panel"],
                  justify="left", wraplength=610).pack(side="left", anchor="w")
 
     preview = tk.Label(win, text="Qui comparirà lo scatto di prova",
-                       bg="#d9dde0", fg="black", font=("Arial", 12),
+                       bg=colors["preview"], fg=colors["text"], font=("Arial", 12),
                        width=80, height=20)
     preview.pack(fill="both", expand=True, padx=28, pady=(4, 10))
     status = tk.Label(win, text="Pronto: prepara il piano vuoto.",
-                      font=("Arial", 12, "bold"), fg="black", wraplength=650)
+                      font=("Arial", 12, "bold"), fg=colors["text"],
+                      bg=colors["window"], wraplength=650)
     status.pack(pady=(0, 10))
 
     events = queue.Queue()
@@ -4042,12 +4074,12 @@ def apri_calibrazione_webcam():
 
     def capture_plane():
         plane_button.config(state="disabled")
-        status.config(text="Acquisizione del piano vuoto in corso…", fg="black")
+        status.config(text="Acquisizione del piano vuoto in corso…", fg=colors["text"])
         threading.Thread(target=capture_plane_worker, daemon=True).start()
 
     def test_shot():
         shot_button.config(state="disabled")
-        status.config(text="Scatto di prova in corso…", fg="black")
+        status.config(text="Scatto di prova in corso…", fg=colors["text"])
         threading.Thread(target=test_shot_worker, daemon=True).start()
 
     def poll_events():
@@ -4057,7 +4089,7 @@ def apri_calibrazione_webcam():
                 plane_button.config(state="normal")
                 shot_button.config(state="normal")
                 if kind == "plane":
-                    status.config(text="✓ Piano vuoto salvato. Ora metti un pezzo LEGO al centro.", fg="#087f23")
+                    status.config(text="✓ Piano vuoto salvato. Ora metti un pezzo LEGO al centro.", fg=colors["success"])
                     risultato.config(text=f"Piano salvato per {_camera_mode_label()}.", fg="#2e7d32")
                 elif kind == "shot":
                     rgb = payload[:, :, ::-1]
@@ -4066,15 +4098,15 @@ def apri_calibrazione_webcam():
                     photo = ImageTk.PhotoImage(image)
                     preview.config(image=photo, text="", width=0, height=0)
                     preview.image = photo
-                    status.config(text="✓ Scatto visibile: calibrazione completata.", fg="#087f23")
+                    status.config(text="✓ Scatto visibile: calibrazione completata.", fg=colors["success"])
                 else:
-                    status.config(text=f"Errore: {payload}", fg="#c62828")
+                    status.config(text=f"Errore: {payload}", fg=colors["error"])
         except queue.Empty:
             pass
         if win.winfo_exists():
             win.after(100, poll_events)
 
-    buttons = tk.Frame(win)
+    buttons = tk.Frame(win, bg=colors["window"])
     buttons.pack(fill="x", padx=28, pady=(0, 18))
     plane_button = tk.Button(buttons, text="1. Acquisisci piano vuoto", command=capture_plane)
     stile_pulsante(plane_button, "#ffd500", "#111111", "#e6bf00", bold=True, padx=12, pady=9)
@@ -4140,6 +4172,8 @@ def apri_sorgente_visiva():
     win.title("Sorgente visiva LEGO")
     win.geometry("940x720")
     win.transient(root)
+    colors = _camera_ui_colors()
+    win.configure(bg=colors["window"])
     mode_var = tk.StringVar(value=camera_config.get("mode", "iphone"))
     indices = list(camera_config.get("indices", [0, 1])) + [0, 1]
     camera_a_var = tk.StringVar()
@@ -4147,37 +4181,50 @@ def apri_sorgente_visiva():
     available_cameras = {"choices": [], "by_label": {}}
     probe_results = queue.Queue()
     preview_results = queue.Queue(maxsize=2)
-    status = tk.Label(win, text="Scegli come acquisire il pezzo.", font=("Arial", 12), wraplength=850)
+    status = tk.Label(win, text="Scegli come acquisire il pezzo.", font=("Arial", 12),
+                      fg=colors["text"], bg=colors["window"], wraplength=850)
     preview_running = threading.Event()
     preview_session = {"camera": None}
 
-    tk.Label(win, text="Sorgente visiva", font=("Arial", 21, "bold")).pack(pady=(18, 6))
-    modes = tk.Frame(win)
+    tk.Label(win, text="Sorgente visiva", font=("Arial", 21, "bold"),
+             fg=colors["text"], bg=colors["window"]).pack(pady=(18, 6))
+    modes = tk.Frame(win, bg=colors["window"])
     modes.pack(fill="x", padx=22, pady=8)
     for value, label, detail in (
         ("iphone", "iPhone", "Usa LEGO Vision e la calibrazione A4 esistente."),
         ("camera1", "1 fotocamera", "Una webcam riprende sagoma, colore e dettagli."),
         ("camera2", "2 fotocamere", "Vista superiore + inclinata, risultati fusi."),
     ):
-        card = tk.Frame(modes, bd=1, relief="solid", padx=9, pady=8)
+        card = tk.Frame(modes, bd=1, relief="solid", padx=9, pady=8,
+                        bg=colors["card"], highlightbackground=colors["border"])
         card.pack(side="left", fill="both", expand=True, padx=5)
         tk.Radiobutton(card, text=label, variable=mode_var, value=value,
-                       font=("Arial", 14, "bold")).pack(anchor="w")
-        tk.Label(card, text=detail, justify="left", wraplength=240).pack(anchor="w", pady=(3, 0))
+                       font=("Arial", 14, "bold"), fg=colors["text"],
+                       bg=colors["card"], activeforeground=colors["text"],
+                       activebackground=colors["card"],
+                       selectcolor=colors["preview"]).pack(anchor="w")
+        tk.Label(card, text=detail, justify="left", wraplength=240,
+                 fg=colors["muted"], bg=colors["card"]).pack(anchor="w", pady=(3, 0))
 
-    selectors = tk.LabelFrame(win, text="Fotocamere USB", padx=12, pady=10)
+    selectors = tk.LabelFrame(win, text="Fotocamere USB", padx=12, pady=10,
+                              fg=colors["text"], bg=colors["panel"],
+                              highlightbackground=colors["border"])
     selectors.pack(fill="x", padx=27, pady=10)
-    tk.Label(selectors, text="Vista principale (dall’alto):").grid(row=0, column=0, sticky="w", padx=6, pady=5)
+    tk.Label(selectors, text="Vista principale (dall’alto):", fg=colors["text"],
+             bg=colors["panel"]).grid(row=0, column=0, sticky="w", padx=6, pady=5)
     menu_a = ttk.Combobox(selectors, textvariable=camera_a_var, state="readonly", width=52)
     menu_a.grid(row=0, column=1, sticky="w")
-    tk.Label(selectors, text="Seconda vista (inclinata):").grid(row=1, column=0, sticky="w", padx=6, pady=5)
+    tk.Label(selectors, text="Seconda vista (inclinata):", fg=colors["text"],
+             bg=colors["panel"]).grid(row=1, column=0, sticky="w", padx=6, pady=5)
     menu_b = ttk.Combobox(selectors, textvariable=camera_b_var, state="readonly", width=52)
     menu_b.grid(row=1, column=1, sticky="w")
 
-    preview_frame = tk.Frame(win, bg="#242424", height=340)
+    preview_frame = tk.Frame(win, bg=colors["preview"], height=340)
     preview_frame.pack(fill="both", expand=True, padx=27, pady=8)
-    preview_a = tk.Label(preview_frame, text="Anteprima principale", bg="#242424", fg="white")
-    preview_b = tk.Label(preview_frame, text="Anteprima inclinata", bg="#242424", fg="white")
+    preview_a = tk.Label(preview_frame, text="Anteprima principale",
+                         bg=colors["preview"], fg=colors["text"])
+    preview_b = tk.Label(preview_frame, text="Anteprima inclinata",
+                         bg=colors["preview"], fg=colors["text"])
     preview_a.pack(side="left", fill="both", expand=True, padx=3, pady=3)
     preview_b.pack(side="left", fill="both", expand=True, padx=3, pady=3)
     status.pack(pady=4)
@@ -4298,11 +4345,11 @@ def apri_sorgente_visiva():
             while True:
                 found, error = probe_results.get_nowait()
                 if error:
-                    status.config(text=error, fg="#c62828")
+                    status.config(text=error, fg=colors["error"])
                     continue
                 update_camera_choices(found)
                 text = ", ".join(choice.label for choice in found) or "Nessuna fotocamera rilevata"
-                status.config(text=text, fg="black")
+                status.config(text=text, fg=colors["text"])
         except queue.Empty:
             pass
         try:
@@ -4313,16 +4360,16 @@ def apri_sorgente_visiva():
                 elif kind == "iphone":
                     show_iphone_frame(payload)
                 elif kind == "error":
-                    status.config(text=payload, fg="#c62828")
+                    status.config(text=payload, fg=colors["error"])
                 else:
-                    status.config(text=payload, fg="black")
+                    status.config(text=payload, fg=colors["text"])
         except queue.Empty:
             pass
         if win.winfo_exists():
             win.after(100, poll_probe_results)
 
     def start_probe():
-        status.config(text="Cerco le fotocamere collegate…", fg="black")
+        status.config(text="Cerco le fotocamere collegate…", fg=colors["text"])
         threading.Thread(target=probe_worker, daemon=True).start()
 
     def save():
@@ -4344,7 +4391,7 @@ def apri_sorgente_visiva():
         camera_window = None
         win.destroy()
 
-    buttons = tk.Frame(win)
+    buttons = tk.Frame(win, bg=colors["window"])
     buttons.pack(fill="x", padx=27, pady=(4, 16))
     tk.Button(buttons, text="Cerca fotocamere", command=start_probe).pack(side="left", padx=4)
     tk.Button(buttons, text="Avvia anteprima live", command=lambda: threading.Thread(target=preview_worker, daemon=True).start()).pack(side="left", padx=4)
