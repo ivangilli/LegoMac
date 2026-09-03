@@ -4525,12 +4525,20 @@ def apri_sorgente_visiva():
 
     def save():
         global camera_config
-        chosen = selected_indices()
-        if mode_var.get() == "camera2" and len(set(chosen)) != 2:
+        selected_mode = mode_var.get()
+        if selected_mode == "iphone":
+            chosen = list(camera_config.get("indices", [1]))
+        else:
+            try:
+                chosen = selected_indices()
+            except CameraError as exc:
+                messagebox.showwarning("Fotocamere", str(exc))
+                return
+        if selected_mode == "camera2" and len(set(chosen)) != 2:
             messagebox.showwarning("Due fotocamere", "Scegli due indici diversi.")
             return
         _close_camera_session()
-        camera_config = {"mode": mode_var.get(), "indices": chosen}
+        camera_config = {"mode": selected_mode, "indices": chosen}
         save_camera_config(camera_config_file, camera_config["mode"], chosen)
         aggiorna_controlli_sorgente()
         risultato.config(text=f"Sorgente attiva: {_camera_mode_label()}", fg="#1565c0")
