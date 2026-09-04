@@ -10,8 +10,8 @@ Versione corrente: **v12.0-MASTER-MULTICAMERA-B1**.
 - server MASTER locale sulla porta 8765 con PIN generato localmente;
 - pairing iPhone tramite QR;
 - comandi remoti verso LEGO Vision;
-- pannello **Calibrazione iPhone A4** compatibile con LEGO Vision v13.1 build 17;
-- zoom automatico 1×–3× quando il foglio A4 è troppo lontano;
+- pannello **Calibrazione iPhone A5** compatibile con LEGO Vision v13.4 build 20;
+- zoom automatico 1×–3× quando il foglio A5 è troppo lontano;
 - comandi `a4_start`, `a4_plane`, `a4_reference`, `a4_status`, `a4_close`;
 - lettura dello stato calibrazione restituito dall’iPhone;
 - riconoscimento e filtro dei pezzi mancanti;
@@ -26,7 +26,7 @@ Versione corrente: **v12.0-MASTER-MULTICAMERA-B1**.
 
 Apri **Sorgente visiva** nella barra superiore e scegli una modalità:
 
-1. **iPhone** mantiene il collegamento LAN e la calibrazione A4 della build 17;
+1. **iPhone** mantiene il collegamento LAN e la calibrazione A5 della build 20;
 2. **1 fotocamera** usa una webcam collegata al Mac;
 3. **2 fotocamere** usa una vista principale dall'alto e una seconda vista inclinata.
 
@@ -69,17 +69,17 @@ python3 legofinderv7.py
 
 In alternativa la API key può essere fornita tramite variabile d'ambiente `REBRICKABLE_API_KEY`.
 
-## Calibrazione iPhone build 17 dal Mac
+## Calibrazione iPhone build 20 dal Mac
 
-Nel pannello **Calibrazione iPhone A4** puoi:
+Nel pannello **Calibrazione iPhone A5** puoi:
 
-1. aprire la guida A4 sull’iPhone;
+1. aprire la guida A5 sull’iPhone;
 2. calibrare il piano vuoto;
 3. avviare la verifica della Plate rossa 2×4;
 4. leggere lo stato corrente della calibrazione dall’iPhone;
 5. chiudere la guida e tornare al riconoscimento.
 
-La MASTER mostra anche le risposte restituite da LEGO Vision build 17 e mantiene lo stato A4 ricevuto.
+La MASTER mostra anche le risposte restituite da LEGO Vision build 20 e mantiene lo stato della calibrazione ricevuto.
 
 ## Sicurezza / file locali
 
@@ -87,4 +87,4 @@ La MASTER mostra anche le risposte restituite da LEGO Vision build 17 e mantiene
 
 ## iPhone
 
-La MASTER è progettata per lavorare con **LEGO Vision v13.1 build 17** sul branch `v13-vision-brickognize` del repository `ivangilli/Lego`.
+La MASTER è progettata per lavorare con **LEGO Vision v13.4 build 20** sul branch `v13-vision-brickognize` del repository `ivangilli/Lego`.

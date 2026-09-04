@@ -3811,11 +3811,11 @@ def invia_comando_iphone(command):
     labels = {
         "calibrate": "Calibrazione piano richiesta",
         "calibrate_reference": "Calibrazione Plate richiesta",
-        "a4_start": "Guida A4 aperta su iPhone",
-        "a4_plane": "Acquisizione piano A4 richiesta",
-        "a4_reference": "Verifica Plate A4 richiesta",
+        "a4_start": "Guida A5 aperta su iPhone",
+        "a4_plane": "Acquisizione piano A5 richiesta",
+        "a4_reference": "Verifica Plate A5 richiesta",
         "a4_status": "Lettura stato calibrazione richiesta",
-        "a4_close": "Chiusura guida A4 richiesta",
+        "a4_close": "Chiusura guida A5 richiesta",
         "analyze": "Analisi richiesta",
     }
     testo = labels.get(command, f"Comando {command}")
@@ -3823,9 +3823,9 @@ def invia_comando_iphone(command):
 
 
 def apri_calibrazione_iphone_a4():
-    """Pannello MASTER per la calibrazione A4 di LEGO Vision v13.1 B17."""
+    """Pannello MASTER per la calibrazione A5 (protocollo a4_* compatibile)."""
     win = tk.Toplevel(root)
-    win.title("Calibrazione iPhone A4 — build 17")
+    win.title("Calibrazione iPhone A5 — build 20")
     win.transient(root)
     _center_camera_window(win, 720, 860)
     colors = _camera_ui_colors()
@@ -3833,7 +3833,7 @@ def apri_calibrazione_iphone_a4():
 
     tk.Label(
         win,
-        text="Calibrazione guidata iPhone — foglio A4",
+        text="Calibrazione guidata iPhone — foglio A5",
         font=("Arial", 18, "bold"),
         fg=colors["text"], bg=colors["window"],
     ).pack(pady=(18, 6))
@@ -3854,14 +3854,14 @@ def apri_calibrazione_iphone_a4():
     steps = tk.Frame(win, bg=colors["window"])
     steps.pack(fill="x", padx=22)
     rows = [
-        ("1", "Apri guida A4 su iPhone", "a4_start",
-         "Apri la guida sull’iPhone e inquadra tutto il foglio A4 con i quattro marker.", "#006cb7"),
+        ("1", "Apri guida A5 su iPhone", "a4_start",
+         "Apri la guida sull’iPhone e inquadra tutto il foglio A5 con i quattro marker.", "#006cb7"),
         ("2", "Calibra piano vuoto", "a4_plane",
-         "Lascia il foglio vuoto e fermo mentre l’iPhone acquisisce il piano.", "#f47b20"),
+         "Lascia il foglio A5 vuoto e fermo mentre l’iPhone acquisisce il piano.", "#f47b20"),
         ("3", "Avvia Plate rossa 2×4", "a4_reference",
          "Metti la Plate rossa 2×4 al centro del foglio e avvia la verifica.", "#e3000b"),
         ("4", "Leggi stato calibrazione iPhone", "a4_status",
-         "Richiedo lo stato attuale di piano, Plate 2×4 e calibrazione A4.", "#aeb8bf"),
+         "Richiedo lo stato attuale di piano, Plate 2×4 e calibrazione A5.", "#aeb8bf"),
         ("5", "Chiudi guida e torna al riconoscimento", "a4_close",
          "La guida viene chiusa e l’iPhone torna al riconoscimento.", "#00a650"),
     ]
@@ -3881,7 +3881,7 @@ def apri_calibrazione_iphone_a4():
     )
     preview.pack(fill="both", expand=True, padx=24, pady=(12, 4))
     preview_status = tk.Label(
-        win, text="Apri la guida A4 per avviare l’invio delle immagini.",
+        win, text="Apri la guida A5 per avviare l’invio delle immagini.",
         font=("Arial", 10), fg=colors["muted"], bg=colors["window"],
     )
     preview_status.pack(pady=(0, 2))
@@ -3889,7 +3889,7 @@ def apri_calibrazione_iphone_a4():
     tk.Label(
         win,
         text=("Controlla la barra da 50 mm sul foglio stampato. Durante i passaggi "
-              "2 e 3 non muovere l’iPhone né il foglio A4."),
+              "2 e 3 non muovere l’iPhone né il foglio A5."),
         font=("Arial", 11),
         fg=colors["text"], bg=colors["window"],
         wraplength=610,
@@ -4320,7 +4320,7 @@ def apri_sorgente_visiva():
     modes = tk.Frame(win, bg=colors["window"])
     modes.pack(fill="x", padx=22, pady=8)
     for value, label, detail in (
-        ("iphone", "iPhone", "Usa LEGO Vision e la calibrazione A4 esistente."),
+        ("iphone", "iPhone", "Usa LEGO Vision e la calibrazione A5 esistente."),
         ("camera1", "1 fotocamera", "Una webcam riprende sagoma, colore e dettagli."),
         ("camera2", "2 fotocamere", "Vista superiore + inclinata, risultati fusi."),
     ):
@@ -4746,7 +4746,7 @@ def _master_action(payload):
                 master_iphone_a4_status["reference"] = True
             elif "plate=no" in lower or "plate no" in lower:
                 master_iphone_a4_status["reference"] = False
-            if any(token in lower for token in ("piano", "plate", "calibrazione a4")):
+            if any(token in lower for token in ("piano", "plate", "calibrazione a4", "calibrazione a5")):
                 master_iphone_a4_status["message"] = message
 
             risultato.config(text=f"iPhone B17: {message}", fg="#2e7d32")
