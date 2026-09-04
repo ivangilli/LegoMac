@@ -4857,14 +4857,19 @@ def mostra_qr_master():
     win = tk.Toplevel(root)
     win.title("Configura iPhone con QR")
     win.resizable(False, False)
-    tk.Label(win, text="Inquadra con TrueDepth LEGO", font=("Arial", 18, "bold")).pack(pady=(16, 8))
-    qr_label = tk.Label(win, image=photo, bd=8, relief="solid")
+    colors = _camera_ui_colors()
+    win.configure(bg=colors["window"])
+    _center_camera_window(win, 500, 590)
+    tk.Label(win, text="Inquadra con LEGO Vision", font=("Arial", 18, "bold"),
+             fg=colors["text"], bg=colors["window"]).pack(pady=(16, 8))
+    qr_label = tk.Label(win, image=photo, bd=8, relief="solid", bg="white")
     qr_label.image = photo
     qr_label.pack(padx=18, pady=8)
     tk.Label(
         win,
         text=f"{master_pairing_info['address']}\nPIN {master_pairing_info['pin']}",
-        font=("Arial", 13), justify="center"
+        font=("Arial", 13), justify="center",
+        fg=colors["text"], bg=colors["window"],
     ).pack(pady=(6, 16))
 
 def inserisci_quantita(k):
@@ -5145,9 +5150,9 @@ def on_leave_pezzo(event, cell_ref=None):
 
 def aggiorna_label_movimento():
     if ultimo_movimento:
-        label_movimento.config(text=ultimo_movimento, fg="green")
+        label_movimento.config(text=ultimo_movimento, fg="#66df83" if APP_TEXT_FG != "#111111" else "green")
     else:
-        label_movimento.config(text="Metti in →", fg="black")
+        label_movimento.config(text="Metti in →", fg=APP_TEXT_FG)
 
 def aggiorna_progresso_set():
     """Aggiorna la barra progresso testuale per il set correntemente selezionato"""
@@ -5597,10 +5602,10 @@ def refresh_visible_grid(force=False):
         completo = total > 0 and used >= total
         if show_missing_only and completo:
             b.config(image=img_dark, state="normal")
-            lbl.config(fg="gray")
+            lbl.config(fg=APP_MUTED_FG)
         else:
             b.config(image=img, state="normal")
-            lbl.config(fg="black")
+            lbl.config(fg=APP_TEXT_FG)
 
         ui_refs[k] = {
             "frame": f,
@@ -6518,6 +6523,21 @@ root = tk.Tk()
 root.title("LEGO Smista PRO 🔥 " + version)
 root.geometry("1500x950")
 
+# Testo dell'interfaccia coerente con l'aspetto macOS. I pulsanti conservano
+# la propria palette LEGO e il testo nero ad alto contrasto.
+_app_colors = _camera_ui_colors()
+APP_TEXT_FG = _app_colors["text"]
+APP_MUTED_FG = _app_colors["muted"]
+root.option_add("*Label.Foreground", APP_TEXT_FG)
+root.option_add("*Checkbutton.Foreground", APP_TEXT_FG)
+root.option_add("*Radiobutton.Foreground", APP_TEXT_FG)
+root.option_add("*Labelframe.Foreground", APP_TEXT_FG)
+root.option_add("*Menu.Foreground", APP_TEXT_FG)
+
+_ttk_style = ttk.Style(root)
+for _style_name in ("TLabel", "TCheckbutton", "TRadiobutton", "TLabelframe.Label"):
+    _ttk_style.configure(_style_name, foreground=APP_TEXT_FG)
+
 ui_settings = load_ui_settings()
 try:
     ICON_SIZE = max(90, min(260, int(ui_settings.get("icon_size", ICON_SIZE))))
@@ -6668,7 +6688,9 @@ def aggiorna_controlli_sorgente():
     btn_sorgente.config(text=f"◉ {label}")
     btn_calibra_iphone.config(text=f"◎ Calibra {label}")
     btn_analizza_iphone.config(text=f"⌾ Analizza {label}")
-    btn_qr_master.config(state="normal" if camera_config.get("mode") == "iphone" else "disabled")
+    # Il pairing iPhone è indipendente dalla sorgente visiva corrente: deve
+    # restare disponibile anche mentre si usa una webcam USB.
+    btn_qr_master.config(state="normal")
 
 aggiorna_controlli_sorgente()
 
