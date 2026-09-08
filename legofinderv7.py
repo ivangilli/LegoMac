@@ -5371,7 +5371,8 @@ def aggiorna_layout_griglia():
 def aggiorna_font_griglia():
     global normal_font, bold_font
     base_default = font.nametofont("TkDefaultFont")
-    target_size = max(9, min(18, int(ICON_SIZE / 11)))
+    # Il testo sotto i pezzi deve restare compatto rispetto all'immagine.
+    target_size = max(8, min(15, int(ICON_SIZE / 13)))
 
     normal_font = base_default.copy()
     normal_font.configure(size=target_size, weight="normal")
@@ -5785,7 +5786,9 @@ def aggiorna_pezzo_griglia(k):
     )
     
     # Se il pezzo è completato, color verde
-    colore = "green" if total > 0 and used >= total else "black"
+    colore = "#66df83" if total > 0 and used >= total and APP_TEXT_FG != "#111111" else (
+        "green" if total > 0 and used >= total else APP_TEXT_FG
+    )
     lbl.config(fg=colore)
 
     # Aggiorna subito icona/stato bottone in base al toggle "solo mancanti"
@@ -5795,7 +5798,7 @@ def aggiorna_pezzo_griglia(k):
     completo = total > 0 and used >= total
     if solo_mancanti_var.get() and completo:
         btn.config(image=img_dark, state="normal")
-        lbl.config(fg="gray")
+        lbl.config(fg=APP_MUTED_FG)
     else:
         btn.config(image=img_normal, state="normal")
     
