@@ -6552,8 +6552,19 @@ root.geometry("1500x950")
 # Testo dell'interfaccia coerente con l'aspetto macOS. I pulsanti conservano
 # la propria palette LEGO e il testo nero ad alto contrasto.
 _app_colors = _camera_ui_colors()
+APP_WINDOW_BG = _app_colors["window"]
+APP_PANEL_BG = _app_colors["panel"]
+APP_CARD_BG = _app_colors["card"]
 APP_TEXT_FG = _app_colors["text"]
 APP_MUTED_FG = _app_colors["muted"]
+root.configure(bg=APP_WINDOW_BG)
+root.option_add("*Background", APP_WINDOW_BG)
+root.option_add("*Frame.Background", APP_WINDOW_BG)
+root.option_add("*Label.Background", APP_WINDOW_BG)
+root.option_add("*Labelframe.Background", APP_WINDOW_BG)
+root.option_add("*Canvas.Background", APP_WINDOW_BG)
+root.option_add("*Checkbutton.Background", APP_WINDOW_BG)
+root.option_add("*Radiobutton.Background", APP_WINDOW_BG)
 root.option_add("*Label.Foreground", APP_TEXT_FG)
 root.option_add("*Checkbutton.Foreground", APP_TEXT_FG)
 root.option_add("*Radiobutton.Foreground", APP_TEXT_FG)
@@ -6562,7 +6573,9 @@ root.option_add("*Menu.Foreground", APP_TEXT_FG)
 
 _ttk_style = ttk.Style(root)
 for _style_name in ("TLabel", "TCheckbutton", "TRadiobutton", "TLabelframe.Label"):
-    _ttk_style.configure(_style_name, foreground=APP_TEXT_FG)
+    _ttk_style.configure(
+        _style_name, foreground=APP_TEXT_FG, background=APP_WINDOW_BG,
+    )
 
 ui_settings = load_ui_settings()
 try:
@@ -6925,14 +6938,14 @@ label_info.pack()
 label_movimento = tk.Label(root, font=("Arial", 20))
 label_movimento.pack()
 
-label_progresso_set = tk.Label(root, font=("Arial", 12), fg="#333333")
+label_progresso_set = tk.Label(root, font=("Arial", 12), fg=APP_MUTED_FG)
 label_progresso_set.pack()
 
 risultato = tk.Label(root, font=("Arial", 16))
 risultato.pack()
 
 # 🔹 GRID SCROLL
-canvas = tk.Canvas(root)
+canvas = tk.Canvas(root, bg=APP_WINDOW_BG, highlightthickness=0)
 scroll = tk.Scrollbar(root)
 
 def on_main_canvas_scroll(*args):
@@ -6946,7 +6959,7 @@ def on_main_canvas_yscroll(first, last):
 scroll.configure(command=on_main_canvas_scroll)
 bind_mousewheel_scroll(canvas, on_scroll=schedule_refresh_visible_grid)
 
-frame_grid = tk.Frame(canvas)
+frame_grid = tk.Frame(canvas, bg=APP_WINDOW_BG)
 
 canvas.create_window((0, 0), window=frame_grid, anchor="nw")
 canvas.configure(yscrollcommand=on_main_canvas_yscroll)
