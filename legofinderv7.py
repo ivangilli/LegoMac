@@ -4261,9 +4261,10 @@ def analizza_sorgente_visiva():
         invia_comando_iphone("analyze")
         return
     risultato.config(text=f"Analisi con {_camera_mode_label()}…", fg="#1565c0")
+    events = queue.Queue()
 
     def progress(message):
-        root.after(0, lambda m=message: risultato.config(text=m, fg="#1565c0"))
+        events.put(("progress", message))
 
     def worker():
         try:
@@ -4279,15 +4280,37 @@ def analizza_sorgente_visiva():
                 "color": detected_color, "source": _camera_mode_label(),
                 "views": len(frames), "recognized_id": predictions[0].get("id", "") if predictions else "",
             }
-            root.after(0, lambda: mostra_candidati_master(candidates, measurement))
-            root.after(0, lambda: risultato.config(
-                text=(f"{_camera_mode_label()}: {len(candidates)} candidati mancanti"
-                      if candidates else "Pezzo riconosciuto, ma non trovato tra quelli mancanti"),
-                fg="#2e7d32" if candidates else "#ef6c00"))
+            events.put(("result", (candidates, measurement)))
         except Exception as exc:
-            root.after(0, lambda e=str(exc): messagebox.showerror("Analisi fotocamere", e))
-            root.after(0, lambda: risultato.config(text="Analisi fotocamere non riuscita", fg="#c62828"))
+            events.put(("error", str(exc)))
+
+    def poll_events():
+        finished = False
+        try:
+            while True:
+                kind, payload = events.get_nowait()
+                if kind == "progress":
+                    risultato.config(text=payload, fg="#1565c0")
+                elif kind == "result":
+                    candidates, measurement = payload
+                    mostra_candidati_master(candidates, measurement)
+                    risultato.config(
+                        text=(f"{_camera_mode_label()}: {len(candidates)} candidati mancanti"
+                              if candidates else "Pezzo riconosciuto, ma non trovato tra quelli mancanti"),
+                        fg="#2e7d32" if candidates else "#ef6c00",
+                    )
+                    finished = True
+                else:
+                    messagebox.showerror("Analisi fotocamere", payload)
+                    risultato.config(text="Analisi fotocamere non riuscita", fg="#c62828")
+                    finished = True
+        except queue.Empty:
+            pass
+        if not finished and root.winfo_exists():
+            root.after(100, poll_events)
+
     threading.Thread(target=worker, daemon=True).start()
+    root.after(100, poll_events)
 
 
 def apri_sorgente_visiva():
