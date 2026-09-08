@@ -6577,6 +6577,65 @@ for _style_name in ("TLabel", "TCheckbutton", "TRadiobutton", "TLabelframe.Label
         _style_name, foreground=APP_TEXT_FG, background=APP_WINDOW_BG,
     )
 
+_active_theme_colors = dict(_app_colors)
+
+
+def _apply_system_theme():
+    """Aggiorna anche i widget già aperti quando cambia il tema di macOS."""
+    global _active_theme_colors, _app_colors
+    global APP_WINDOW_BG, APP_PANEL_BG, APP_CARD_BG, APP_TEXT_FG, APP_MUTED_FG
+
+    new_colors = _camera_ui_colors()
+    old_colors = _active_theme_colors
+    if new_colors == old_colors:
+        root.after(1200, _apply_system_theme)
+        return
+
+    background_map = {
+        old_colors["window"].lower(): new_colors["window"],
+        old_colors["panel"].lower(): new_colors["panel"],
+        old_colors["card"].lower(): new_colors["card"],
+        old_colors["preview"].lower(): new_colors["preview"],
+    }
+    foreground_map = {
+        old_colors["text"].lower(): new_colors["text"],
+        old_colors["muted"].lower(): new_colors["muted"],
+        old_colors["success"].lower(): new_colors["success"],
+        old_colors["error"].lower(): new_colors["error"],
+    }
+
+    def recolor(widget):
+        # I pulsanti mantengono sempre palette LEGO e testo nero.
+        if not isinstance(widget, tk.Button):
+            for option, palette in (("background", background_map),
+                                    ("foreground", foreground_map)):
+                try:
+                    current = str(widget.cget(option)).lower()
+                    if current in palette:
+                        widget.configure(**{option: palette[current]})
+                except (tk.TclError, AttributeError):
+                    pass
+        for child in widget.winfo_children():
+            recolor(child)
+
+    _app_colors = new_colors
+    APP_WINDOW_BG = new_colors["window"]
+    APP_PANEL_BG = new_colors["panel"]
+    APP_CARD_BG = new_colors["card"]
+    APP_TEXT_FG = new_colors["text"]
+    APP_MUTED_FG = new_colors["muted"]
+    _active_theme_colors = dict(new_colors)
+
+    root.option_add("*Background", APP_WINDOW_BG)
+    root.option_add("*Frame.Background", APP_WINDOW_BG)
+    root.option_add("*Label.Background", APP_WINDOW_BG)
+    root.option_add("*Canvas.Background", APP_WINDOW_BG)
+    root.option_add("*Label.Foreground", APP_TEXT_FG)
+    for style_name in ("TLabel", "TCheckbutton", "TRadiobutton", "TLabelframe.Label"):
+        _ttk_style.configure(style_name, foreground=APP_TEXT_FG, background=APP_WINDOW_BG)
+    recolor(root)
+    root.after(1200, _apply_system_theme)
+
 ui_settings = load_ui_settings()
 try:
     ICON_SIZE = max(90, min(260, int(ui_settings.get("icon_size", ICON_SIZE))))
@@ -6977,6 +7036,7 @@ carica_mysets()
 ensure_version_backup()
 root.after(25, _process_import_ui_requests)
 root.after(25, _process_master_ui_requests)
+root.after(1200, _apply_system_theme)
 start_master_server()
 
 # 🔥 CLEANUP: flush salvataggi in sospeso quando chiude
