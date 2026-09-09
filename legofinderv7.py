@@ -4741,7 +4741,10 @@ def _master_recognize(payload):
     result = {"ok": True, "measurement": {"width_mm": observed_w,
             "length_mm": observed_l, "height_mm": observed_h, "color": observed_color},
             "candidates": ranked[:5], "searched_missing": len(ranked)}
-    root.after(0, lambda: mostra_candidati_master(result["candidates"], result["measurement"]))
+    # _master_recognize viene già eseguita sul thread Tk tramite
+    # _master_on_ui_thread: aprire direttamente evita che la callback resti
+    # accodata mentre la risposta HTTP viene completata.
+    mostra_candidati_master(result["candidates"], result["measurement"])
     return result
 
 
