@@ -3812,6 +3812,8 @@ def invia_comando_iphone(command):
         "calibrate": "Calibrazione piano richiesta",
         "calibrate_reference": "Calibrazione Plate richiesta",
         "a4_start": "Guida A5 aperta su iPhone",
+        "a4_start_sheet": "Modalità con foglio A5 aperta su iPhone",
+        "a4_start_plain": "Modalità senza foglio aperta su iPhone",
         "a4_plane": "Acquisizione piano A5 richiesta",
         "a4_reference": "Verifica Plate A5 richiesta",
         "a4_status": "Lettura stato calibrazione richiesta",
@@ -3854,10 +3856,12 @@ def apri_calibrazione_iphone_a4():
     steps = tk.Frame(win, bg=colors["window"])
     steps.pack(fill="x", padx=22)
     rows = [
-        ("1", "Apri guida A5 su iPhone", "a4_start",
-         "Apri la guida sull’iPhone e inquadra tutto il foglio A5 con i quattro marker.", "#006cb7"),
+        ("1A", "Con foglio A5", "a4_start_sheet",
+         "Apro la calibrazione iPhone con foglio A5, bordo e marker.", "#006cb7"),
+        ("1B", "Senza foglio", "a4_start_plain",
+         "Apro la calibrazione iPhone su un piano uniforme, senza foglio.", "#8e44ad"),
         ("2", "Calibra piano vuoto", "a4_plane",
-         "Lascia il foglio A5 vuoto e fermo mentre l’iPhone acquisisce il piano.", "#f47b20"),
+         "Lascia vuota e ferma l’area scelta mentre l’iPhone acquisisce il piano.", "#f47b20"),
         ("3", "Leggi stato calibrazione iPhone", "a4_status",
          "Richiedo lo stato attuale della calibrazione del piano.", "#aeb8bf"),
         ("4", "Chiudi guida e torna al riconoscimento", "a4_close",
