@@ -4590,7 +4590,14 @@ def mostra_candidati_master(candidates, measurement):
     win = tk.Toplevel(root)
     source = measurement.get("source", "iPhone")
     win.title(f"Candidati riconosciuti — {source}")
-    win.geometry("980x720")
+    win.transient(root)
+    _center_camera_window(win, 980, 720)
+    win.lift()
+    win.focus_force()
+    # Su macOS una Toplevel creata da una richiesta di rete può finire dietro
+    # alla MASTER. Il topmost temporaneo la porta davanti senza lasciarla fissa.
+    win.attributes("-topmost", True)
+    win.after(500, lambda: win.winfo_exists() and win.attributes("-topmost", False))
     if source == "iPhone":
         testo_misure = (f"Misura: {measurement.get('width_mm', 0):.1f} × "
                         f"{measurement.get('length_mm', 0):.1f} × "
