@@ -3814,6 +3814,8 @@ def invia_comando_iphone(command):
         "a4_start": "Guida A5 aperta su iPhone",
         "a4_start_sheet": "Modalità con foglio A5 aperta su iPhone",
         "a4_start_plain": "Modalità senza foglio aperta su iPhone",
+        "lighting_torch": "Flash continuo richiesto",
+        "lighting_ambient": "Modalità senza flash richiesta",
         "a4_plane": "Acquisizione piano A5 richiesta",
         "a4_reference": "Verifica Plate A5 richiesta",
         "a4_status": "Lettura stato calibrazione richiesta",
@@ -3827,9 +3829,9 @@ def invia_comando_iphone(command):
 def apri_calibrazione_iphone_a4():
     """Pannello MASTER per la calibrazione A5 (protocollo a4_* compatibile)."""
     win = tk.Toplevel(root)
-    win.title("Calibrazione iPhone A5 — build 20")
+    win.title("Calibrazione iPhone A5 — build 31")
     win.transient(root)
-    _center_camera_window(win, 720, 860)
+    _center_camera_window(win, 740, 960)
     colors = _camera_ui_colors()
     win.configure(bg=colors["window"])
 
@@ -3860,11 +3862,15 @@ def apri_calibrazione_iphone_a4():
          "Apro la calibrazione iPhone con foglio A5, bordo e marker.", "#006cb7"),
         ("1B", "Senza foglio", "a4_start_plain",
          "Apro la calibrazione iPhone su un piano uniforme, senza foglio.", "#8e44ad"),
-        ("2", "Calibra piano vuoto", "a4_plane",
+        ("2A", "Flash sempre", "lighting_torch",
+         "Uso la luce continua dell’iPhone sia per calibrare sia per riconoscere.", "#ffd500"),
+        ("2B", "Senza flash", "lighting_ambient",
+         "Uso la stessa luce ambiente sia per calibrare sia per riconoscere.", "#aeb8bf"),
+        ("3", "Calibra piano vuoto", "a4_plane",
          "Lascia vuota e ferma l’area scelta mentre l’iPhone acquisisce il piano.", "#f47b20"),
-        ("3", "Leggi stato calibrazione iPhone", "a4_status",
+        ("4", "Leggi stato calibrazione iPhone", "a4_status",
          "Richiedo lo stato attuale della calibrazione del piano.", "#aeb8bf"),
-        ("4", "Chiudi guida e torna al riconoscimento", "a4_close",
+        ("5", "Chiudi guida e torna al riconoscimento", "a4_close",
          "La guida viene chiusa e l’iPhone torna al riconoscimento.", "#00a650"),
     ]
     for number, label, command, message, color in rows:
@@ -3879,7 +3885,7 @@ def apri_calibrazione_iphone_a4():
     preview = tk.Label(
         win, text="Attendo l’anteprima live dall’iPhone…",
         font=("Arial", 12), fg=colors["text"], bg=colors["preview"],
-        height=13,
+        height=10,
     )
     preview.pack(fill="both", expand=True, padx=24, pady=(12, 4))
     preview_status = tk.Label(
