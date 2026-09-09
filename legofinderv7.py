@@ -3858,11 +3858,9 @@ def apri_calibrazione_iphone_a4():
          "Apri la guida sull’iPhone e inquadra tutto il foglio A5 con i quattro marker.", "#006cb7"),
         ("2", "Calibra piano vuoto", "a4_plane",
          "Lascia il foglio A5 vuoto e fermo mentre l’iPhone acquisisce il piano.", "#f47b20"),
-        ("3", "Avvia Plate rossa 2×4", "a4_reference",
-         "Metti la Plate rossa 2×4 al centro del foglio e avvia la verifica.", "#e3000b"),
-        ("4", "Leggi stato calibrazione iPhone", "a4_status",
-         "Richiedo lo stato attuale di piano, Plate 2×4 e calibrazione A5.", "#aeb8bf"),
-        ("5", "Chiudi guida e torna al riconoscimento", "a4_close",
+        ("3", "Leggi stato calibrazione iPhone", "a4_status",
+         "Richiedo lo stato attuale della calibrazione del piano.", "#aeb8bf"),
+        ("4", "Chiudi guida e torna al riconoscimento", "a4_close",
          "La guida viene chiusa e l’iPhone torna al riconoscimento.", "#00a650"),
     ]
     for number, label, command, message, color in rows:
@@ -3888,8 +3886,8 @@ def apri_calibrazione_iphone_a4():
 
     tk.Label(
         win,
-        text=("Controlla la barra da 50 mm sul foglio stampato. Durante i passaggi "
-              "2 e 3 non muovere l’iPhone né il foglio A5."),
+        text=("Controlla la barra da 50 mm sul foglio stampato. Durante la "
+              "calibrazione del piano non muovere l’iPhone né il foglio A5."),
         font=("Arial", 11),
         fg=colors["text"], bg=colors["window"],
         wraplength=610,
@@ -3956,10 +3954,9 @@ def apri_calibrazione_iphone_a4():
         if online:
             a4 = master_iphone_a4_status
             plane = "OK" if a4.get("plane") else "—"
-            reference = "OK" if a4.get("reference") else "—"
             detail = str(a4.get("message", "")).strip()
             stato.config(
-                text=f"● iPhone B17 collegato — Piano: {plane}  Plate 2×4: {reference}\n{detail}",
+                text=f"● iPhone collegato — Piano: {plane}\n{detail}",
                 fg=colors["text"],
             )
         elif master_server is None:
