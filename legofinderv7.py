@@ -4787,6 +4787,19 @@ def _master_action(payload):
                     "a4_status": dict(master_iphone_a4_status)}
         if action == "recognize":
             return _master_recognize(payload)
+        if action == "analysis_result":
+            raw_candidates = payload.get("candidates", [])
+            measurement = payload.get("measurement", {})
+            if not isinstance(raw_candidates, list) or not isinstance(measurement, dict):
+                return {"ok": False, "error": "Risultato analisi non valido"}
+            candidates = [row for row in raw_candidates if isinstance(row, dict)][:8]
+            measurement.setdefault("source", "iPhone")
+            mostra_candidati_master(candidates, measurement)
+            risultato.config(
+                text=f"iPhone: analisi completata — {len(candidates)} candidati",
+                fg="#2e7d32" if candidates else "#ef6c00",
+            )
+            return {"ok": True, "candidates_received": len(candidates)}
         key = str(payload.get("piece_key", "")).strip()
         set_name = str(payload.get("set_name", "")).strip()
         try:
