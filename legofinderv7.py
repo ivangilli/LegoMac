@@ -3829,7 +3829,7 @@ def invia_comando_iphone(command):
 def apri_calibrazione_iphone_a4():
     """Pannello MASTER per la calibrazione A5 (protocollo a4_* compatibile)."""
     win = tk.Toplevel(root)
-    win.title("Calibrazione iPhone A5 — build 31")
+    win.title("Calibrazione iPhone A5 — build 32")
     win.transient(root)
     _center_camera_window(win, 740, 960)
     colors = _camera_ui_colors()
